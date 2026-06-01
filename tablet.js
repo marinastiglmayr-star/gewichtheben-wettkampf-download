@@ -198,13 +198,14 @@ function renderRows() {
       const key = attemptKey(item);
       const changes = getAttemptChangeCount(item.athlete, item.lift, item.attemptNo);
       const lockReason = getLockReason(item, current, changes);
+      const minWeight = getMinimumEditableWeight(item, current);
       return `
         <tr class="${index === 0 ? "current" : ""}" data-row-key="${escapeHtml(key)}">
           <td><strong>${escapeHtml(item.athlete.name)}</strong><br><span class="muted">Gruppe ${escapeHtml(groupNameById(item.athlete.groupId))}</span></td>
           <td>${LIFTS[item.lift].short}${item.attemptNo}</td>
           <td>
             <div class="weight-cell">
-              <input data-next-weight-key="${escapeHtml(key)}" type="number" min="1" step="1" value="${item.weight}" ${lockReason ? "disabled" : ""} />
+              <input data-next-weight-key="${escapeHtml(key)}" type="number" min="${minWeight}" step="1" value="${item.weight}" ${lockReason ? "disabled" : ""} />
               <span>kg</span>
             </div>
           </td>
@@ -232,6 +233,8 @@ function updateRowLocks() {
     row.querySelectorAll("input, button").forEach((control) => {
       control.disabled = Boolean(lockReason);
     });
+    const input = row.querySelector("input");
+    if (input) input.min = String(getMinimumEditableWeight(item, current));
   });
 }
 
@@ -239,23 +242,22 @@ function getLockReason(item, current, changes) {
   if (!auth?.token) return "nicht verbunden";
   if (state?.meta?.mode !== "competition" || state?.meta?.breakPending) return "kein aktiver Versuch";
   if (changes >= MAX_WAITING_ROOM_CHANGES) return `max. ${MAX_WAITING_ROOM_CHANGES} Aenderungen`;
-  if (current && attemptKey(item) === attemptKey(current) && isOpeningAttemptOfPhase(item)) {
-    return "erster Versuch gesperrt";
-  }
-  if (current && attemptKey(item) === attemptKey(current) && getRemainingSeconds() <= 30) {
-    return "ab 30s gesperrt";
+  if (current && attemptKey(item) === attemptKey(current) && isTimerStartedForCurrent(item) && getRemainingSeconds() <= 30) {
+    return "Final Call";
   }
   return "";
 }
 
-function isOpeningAttemptOfPhase(item) {
-  if (!item || item.attemptNo !== 1) return false;
-  if (item.lift !== state?.meta?.activeLift) return false;
-  const activeGroupId = state?.meta?.activeGroupId || getOrderedGroups()[0]?.id || null;
-  if (!activeGroupId || getAthleteGroupId(item.athlete) !== activeGroupId) return false;
-  return (state.athletes || [])
-    .filter((athlete) => getAthleteGroupId(athlete) === activeGroupId)
-    .every((athlete) => (athlete.attempts?.[item.lift] || []).length === 0);
+function getMinimumEditableWeight(item, current) {
+  if (current && attemptKey(item) === attemptKey(current) && isTimerStartedForCurrent(item)) {
+    return item.weight;
+  }
+  return 1;
+}
+
+function isTimerStartedForCurrent(item) {
+  const timer = state?.meta?.attemptTimer;
+  return Boolean(timer?.startedBy && timer?.startedAt && timer.key === attemptKey(item));
 }
 
 function renderTimer() {

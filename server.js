@@ -480,12 +480,6 @@ async function updateTabletNextAttempt(req, res) {
   const currentBefore = getCurrentAttempt();
   const currentKey = currentBefore ? attemptKey(currentBefore) : "";
   const targetKey = attemptKey(attemptInfo);
-  const currentRemaining = state.meta.attemptTimer ? remainingTimerSeconds(state.meta.attemptTimer) : 0;
-  if (currentKey === targetKey && currentRemaining <= 30) {
-    sendJson(res, 409, { error: "Aenderung nur bis 31 Sekunden moeglich." });
-    return;
-  }
-
   if (!Number.isInteger(weight) || weight < 1) {
     sendJson(res, 400, { error: "Bitte ein gueltiges Gewicht eintragen." });
     return;
@@ -498,8 +492,16 @@ async function updateTabletNextAttempt(req, res) {
   }
 
   const existingWeight = parseInteger(athlete.next?.[lift] || athlete.openers?.[lift]);
-  if (weight !== existingWeight && currentKey === targetKey && isOpeningAttemptOfPhase(attemptInfo)) {
-    sendJson(res, 409, { error: "Der erste Versuch des Durchgangs kann im Warteraum nicht gesteigert werden." });
+  const targetIsCurrent = currentKey === targetKey;
+  const targetTimer = targetIsCurrent ? state.meta.attemptTimer : null;
+  const targetTimerStarted = Boolean(targetTimer?.startedBy && targetTimer?.startedAt && targetTimer.key === targetKey);
+  const currentRemaining = targetTimer ? remainingTimerSeconds(targetTimer) : 0;
+  if (weight !== existingWeight && targetIsCurrent && targetTimerStarted && currentRemaining <= 30) {
+    sendJson(res, 409, { error: "Aenderung nur bis 31 Sekunden moeglich." });
+    return;
+  }
+  if (weight < existingWeight && targetIsCurrent && targetTimerStarted) {
+    sendJson(res, 409, { error: "Reduzierung nur vor dem Start der Uhr moeglich." });
     return;
   }
   const currentChangeCount = getAttemptChangeCount(athlete, lift, attemptNo);
@@ -507,6 +509,14 @@ async function updateTabletNextAttempt(req, res) {
     sendJson(res, 409, { error: `Maximal ${MAX_WAITING_ROOM_CHANGES} Aenderungen pro Versuch.` });
     return;
   }
+
+  const pauseRunningTimerForSameAthlete =
+    weight > existingWeight &&
+    targetIsCurrent &&
+    targetTimerStarted &&
+    !targetTimer.paused &&
+    targetTimer.key === targetKey;
+  const remainingBeforePause = pauseRunningTimerForSameAthlete ? remainingTimerSeconds(targetTimer) : null;
 
   athlete.next[lift] = weight;
   if (weight !== existingWeight) {
@@ -522,6 +532,14 @@ async function updateTabletNextAttempt(req, res) {
     setAttemptTimerForNext(null);
   } else {
     ensureAttemptTimerForCurrent();
+  }
+  const finalCurrent = getCurrentAttempt();
+  if (pauseRunningTimerForSameAthlete && finalCurrent && attemptKey(finalCurrent) === targetKey) {
+    state.meta.attemptTimer = {
+      ...state.meta.attemptTimer,
+      paused: true,
+      remaining: remainingBeforePause,
+    };
   }
 
   await persistState();
@@ -1003,17 +1021,6 @@ function getAttemptChangeCount(athlete, lift, attemptNo) {
 function setAttemptChangeCount(athlete, lift, attemptNo, count) {
   athlete.nextChangeCounts = athlete.nextChangeCounts || {};
   athlete.nextChangeCounts[attemptChangeKey(lift, attemptNo)] = Math.min(Math.max(parseInteger(count) || 0, 0), MAX_WAITING_ROOM_CHANGES);
-}
-
-function isOpeningAttemptOfPhase(item) {
-  if (!item || item.attemptNo !== 1) return false;
-  if (state.meta.mode !== "competition" || state.meta.breakPending) return false;
-  if (item.lift !== state.meta.activeLift) return false;
-  const activeGroupId = state.meta.activeGroupId || firstPendingGroupId();
-  if (!activeGroupId || getAthleteGroupId(item.athlete) !== activeGroupId) return false;
-  const current = getCurrentAttempt();
-  if (!current || attemptKey(current) !== attemptKey(item)) return false;
-  return athletesForGroup(activeGroupId).every((athlete) => (athlete.attempts?.[item.lift] || []).length === 0);
 }
 
 function setAttemptTimerForNext(previousAthleteId) {
