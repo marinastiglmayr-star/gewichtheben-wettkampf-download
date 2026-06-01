@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Warteraum Gewichtheben</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="tablet.css" />
+    <script src="tablet.js" defer></script>
+  </head>
+  <body>
+    <main class="tablet-shell">
+      <header class="tablet-header">
+        <div>
+          <p class="eyebrow">Warteraum</p>
+          <h1>Naechste Versuche</h1>
+          <p id="mode-note" class="mode-note">Warten auf Wettkampf</p>
+        </div>
+        <span id="attempt-timer" class="timer-badge">--</span>
+      </header>
+
+      <section class="panel" id="login-panel">
+        <form id="login-form" class="login-form" autocomplete="off">
+          <label>
+            <span>Verbindungscode</span>
+            <input id="code" inputmode="numeric" maxlength="4" placeholder="1234" required />
+          </label>
+          <button type="submit" class="primary-button">Verbinden</button>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="tablet-panel">
+        <div class="session-row">
+          <div>
+            <p class="eyebrow">Verbunden</p>
+            <h2 id="tablet-label">Warteraum</h2>
+          </div>
+          <button type="button" class="ghost-button" id="logout">Abmelden</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Athlet</th>
+                <th>Versuch</th>
+                <th>Naechstes Gewicht</th>
+                <th>Aenderungen</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="attempts-body"></tbody>
+          </table>
+        </div>
+        <p id="status" class="status-text">Bereit.</p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Waage Gewichtheben</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="weigh.css" />
+    <script src="weigh.js" defer></script>
+  </head>
+  <body>
+    <main class="weigh-shell">
+      <header class="weigh-header">
+        <div>
+          <p class="eyebrow">Waage</p>
+          <h1>Wiegedaten erfassen</h1>
+          <p id="mode-note" class="mode-note">Vorbereitung</p>
+        </div>
+      </header>
+
+      <section class="panel" id="login-panel">
+        <form id="login-form" class="login-form" autocomplete="off">
+          <label>
+            <span>Verbindungscode</span>
+            <input id="code" inputmode="numeric" maxlength="4" placeholder="1234" required />
+          </label>
+          <button type="submit" class="primary-button">Verbinden</button>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="weigh-panel">
+        <div class="session-row">
+          <div>
+            <p class="eyebrow">Verbunden</p>
+            <h2>Waage</h2>
+          </div>
+          <button type="button" class="ghost-button" id="logout">Abmelden</button>
+        </div>
+
+        <form id="weigh-form" class="weigh-form" autocomplete="off">
+          <label>
+            <span>Gruppe</span>
+            <select id="group-filter"></select>
+          </label>
+          <label class="wide">
+            <span>Athlet</span>
+            <select id="athlete"></select>
+          </label>
+          <label>
+            <span>K&ouml;rpergewicht</span>
+            <input id="bodyweight" type="number" min="0" step="0.01" placeholder="kg" />
+          </label>
+          <label>
+            <span>Start Rei&szlig;en</span>
+            <input id="snatch" type="number" min="1" step="1" placeholder="kg" />
+          </label>
+          <label>
+            <span>Start Sto&szlig;en</span>
+            <input id="clean-jerk" type="number" min="1" step="1" placeholder="kg" />
+          </label>
+          <div id="athlete-summary" class="athlete-summary"></div>
+          <div class="form-actions">
+            <button type="button" class="ghost-button" id="prev-athlete">Vorheriger</button>
+            <button type="button" class="ghost-button" id="next-athlete">Naechster</button>
+            <button type="submit" class="primary-button">Speichern</button>
+          </div>
+        </form>
+        <p id="status" class="status-text">Bereit.</p>
+      </section>
+    </main>
+  </body>
+</html>

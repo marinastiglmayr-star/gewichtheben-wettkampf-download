@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scheibenanzeige Gewichtheben</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="plates.css" />
+    <script src="plates.js" defer></script>
+  </head>
+  <body>
+    <main class="plate-screen">
+      <header class="plate-header">
+        <div>
+          <p class="eyebrow">Scheibensteckung</p>
+          <h1 id="attempt-title">Warten auf Versuch</h1>
+          <p id="rule-mode-label" class="mode-note">Vereinsmodus</p>
+        </div>
+        <div class="weight-badge">
+          <span id="attempt-timer" class="timer-badge">--</span>
+          <span id="total-weight">-- kg</span>
+        </div>
+      </header>
+
+      <section class="bar-stage" aria-live="polite">
+        <div class="bar-label left-label">Links</div>
+        <div class="bar-visual">
+          <div class="plate-stack" id="left-stack"></div>
+          <div class="bar-sleeve"></div>
+          <div class="bar-center" id="bar-label">20 kg Stange</div>
+          <div class="bar-sleeve"></div>
+          <div class="plate-stack right" id="right-stack"></div>
+        </div>
+        <div class="bar-label right-label">Rechts</div>
+      </section>
+
+      <section class="details-grid">
+        <div class="detail-panel">
+          <p class="eyebrow">Pro Seite</p>
+          <div id="plate-list" class="plate-list"></div>
+        </div>
+        <div class="detail-panel">
+          <p class="eyebrow">Kampfrichter</p>
+          <div id="judge-display" class="judge-display"></div>
+        </div>
+        <div class="detail-panel">
+          <p class="eyebrow">Hinweis</p>
+          <p id="plate-note" class="note-text">Noch kein Versuch aktiv.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

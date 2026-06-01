@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gewichtheben Ergebnisse</title>
+    <link rel="stylesheet" href="scoreboard.css" />
+    <script src="scoreboard.js" defer></script>
+  </head>
+  <body>
+    <main class="scoreboard-shell">
+      <header class="scoreboard-head">
+        <div>
+          <p class="eyebrow">Live-Auswertung</p>
+          <h1 id="scoreboard-title">Gewichtheben</h1>
+          <p id="scoreboard-subtitle" class="muted">Warten auf Wettkampf</p>
+          <p id="scoreboard-mode" class="mode-note">Vereinsmodus</p>
+        </div>
+        <div class="scoreboard-head-tools">
+          <span id="scoreboard-timer" class="timer-badge">--</span>
+          <img id="scoreboard-logo" class="club-logo" src="assets/wappen.png" alt="STC Bavaria 20 Landshut e. V." />
+        </div>
+      </header>
+
+      <section class="scoreboard-grid">
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Protokoll</p>
+              <h2>Versuche</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Zeit</th>
+                  <th>Name</th>
+                  <th>Gruppe</th>
+                  <th>Disziplin</th>
+                  <th>Versuch</th>
+                  <th>Gewicht</th>
+                  <th>Wertung</th>
+                </tr>
+              </thead>
+              <tbody id="protocol-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Ergebnisse</p>
+              <h2 id="standings-title">Wertung mit Abzug</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead id="standings-head"></thead>
+              <tbody id="standings-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel team-scoreboard-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Mannschaften</p>
+              <h2 id="teams-title">Live-Mannschaftswertung</h2>
+            </div>
+          </div>
+          <div class="table-wrap compact-wrap">
+            <table>
+              <thead id="teams-head">
+                <tr>
+                  <th>Rang</th>
+                  <th>Mannschaft</th>
+                  <th>Wertende</th>
+                  <th>Relativpunkte</th>
+                  <th>Ohne Ergebnis</th>
+                </tr>
+              </thead>
+              <tbody id="teams-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

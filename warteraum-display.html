@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Warteraum-Anzeige Gewichtheben</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="warteraum-display.css" />
+    <script src="warteraum-display.js" defer></script>
+  </head>
+  <body>
+    <main class="waiting-shell">
+      <header class="waiting-head">
+        <div>
+          <p class="eyebrow">Warteraum</p>
+          <h1 id="event-title">Gewichtheben</h1>
+          <p id="event-subtitle" class="muted">Warten auf Wettkampf</p>
+          <p id="rule-mode" class="mode-note">Vereinsmodus</p>
+        </div>
+        <div class="head-tools">
+          <span id="attempt-timer" class="timer-badge">--</span>
+          <img id="event-logo" class="club-logo" src="assets/wappen.png" alt="STC Bavaria 20 Landshut e. V." />
+        </div>
+      </header>
+
+      <section class="hero-grid">
+        <article class="stage-panel">
+          <p class="eyebrow">Aktuell auf der B&uuml;hne</p>
+          <h2 id="current-athlete">Warten auf Versuch</h2>
+          <p id="current-meta" class="stage-meta">Noch kein aktiver Versuch.</p>
+          <div class="stage-stats">
+            <div>
+              <span class="stat-label">Gewicht</span>
+              <strong id="current-weight">-- kg</strong>
+            </div>
+            <div>
+              <span class="stat-label">Restzeit</span>
+              <strong id="current-time">--</strong>
+            </div>
+            <div>
+              <span class="stat-label">Entscheidung</span>
+              <strong id="decision-status" class="decision open">offen</strong>
+            </div>
+          </div>
+          <p id="current-call-note" class="call-note">Normaler Aufruf &middot; 60 s</p>
+        </article>
+
+        <article class="next-panel">
+          <p class="eyebrow">Als N&auml;chstes bereithalten</p>
+          <h2 id="next-athlete">Noch offen</h2>
+          <p id="next-meta" class="stage-meta">Kein Folgeversuch in der Liste.</p>
+          <p id="next-hint" class="prepare-hint">Hinweis: warten auf aktuellen Versuch</p>
+        </article>
+      </section>
+
+      <section class="info-grid">
+        <article class="panel sequence-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">N&auml;chste Versuche</p>
+              <h2>Reihenfolge im Warteraum</h2>
+            </div>
+            <span id="queue-count" class="status-pill">0 offen</span>
+          </div>
+          <div class="table-wrap sequence-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Athlet</th>
+                  <th>Disziplin</th>
+                  <th>Versuch</th>
+                  <th>Gewicht</th>
+                  <th>Hinweis</th>
+                </tr>
+              </thead>
+              <tbody id="queue-body"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel tactical-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Taktische Live-Wertung</p>
+              <h2 id="standings-title">Vereinswertung</h2>
+            </div>
+          </div>
+          <div class="table-wrap tactical-wrap">
+            <table>
+              <thead id="standings-head"></thead>
+              <tbody id="standings-body"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel overtake-panel">
+          <p class="eyebrow">Zum &Uuml;berholen ben&ouml;tigt</p>
+          <h2 id="overtake-athlete">Taktischer Hinweis</h2>
+          <p id="overtake-hint">Taktischer Hinweis derzeit nicht eindeutig berechenbar.</p>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

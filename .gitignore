@@ -1,0 +1,6 @@
+dist/
+backups/
+competition-state.json
+node-path.txt
+*.zip
+*.log

@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gewichtheben Wettkampf</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 64 32" aria-hidden="true">
+          <path d="M3 14h7v4H3v-4Zm10-6h6v16h-6V8Zm9 6h20v4H22v-4Zm23-6h6v16h-6V8Zm9 6h7v4h-7v-4Z" />
+        </svg>
+        <div>
+          <h1>Wettkampfleitung Gewichtheben</h1>
+          <p id="event-summary">Lokaler Wettkampf</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <label class="toggle-button iwf-toggle top-iwf-toggle" title="IWF-Regelmodus umschalten">
+          <input id="iwf-rules-enabled" type="checkbox" />
+          <span>IWF Regeln</span>
+        </label>
+        <button type="button" class="ghost-button" data-action="generate-registration-list" title="Meldeliste erstellen">
+          Meldeliste
+        </button>
+        <button type="button" class="ghost-button" data-action="generate-start-lists" title="Starterlisten erstellen">
+          Starterlisten
+        </button>
+        <button type="button" class="ghost-button" data-action="generate-report" title="Ergebnisliste erstellen">
+          Ergebnisliste
+        </button>
+        <button type="button" class="ghost-button" data-action="import-data-trigger" title="Daten importieren">
+          Import
+        </button>
+        <button type="button" class="ghost-button" data-action="export-data" title="Daten exportieren">
+          Export
+        </button>
+        <button type="button" class="ghost-button" data-action="open-backups" title="Automatische Sicherungen anzeigen">
+          Sicherungen
+        </button>
+        <button type="button" class="danger-button" data-action="reset-all" title="Alles löschen">
+          Löschen
+        </button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="panel setup-panel" id="setup-panel" data-testid="setup-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Setup</p>
+            <h2>Wettkampf & Athleten</h2>
+          </div>
+          <div class="head-tools">
+            <img class="club-logo" data-active-logo src="assets/wappen.png" alt="STC Bavaria 20 Landshut e. V." />
+            <span class="status-pill">Vorbereitung</span>
+          </div>
+        </div>
+
+        <div class="setup-shell">
+          <aside class="setup-nav" aria-label="Setup-Menü">
+            <button type="button" class="setup-nav-button active" data-action="set-setup-view" data-view="competition" data-iwf-relevant="true">
+              Wettkampf & Gruppen
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="athletes" data-iwf-relevant="true">
+              Meldedaten und Wettkampfstart
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="teams" data-iwf-relevant="true">
+              Mannschaften
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="network" data-iwf-relevant="true">
+              Netzwerk
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="relative">
+              Relativabzug
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="ageFactor">
+              Altersfaktor
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="categories">
+              Geschlechter / Kategorien
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="plates" data-iwf-relevant="true">
+              Gewichtscheiben
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="support" data-iwf-relevant="true">
+              Hilfe & Kontakt
+            </button>
+          </aside>
+
+          <div class="setup-content">
+            <section class="setup-view active" data-setup-view="competition">
+        <form id="event-form" class="event-grid" autocomplete="off">
+          <label>
+            <span>Wettkampf</span>
+            <input id="event-name" type="text" placeholder="Vereinsmeisterschaft" />
+          </label>
+          <label>
+            <span>Wettkampfklasse</span>
+            <input id="event-category" type="text" placeholder="z. B. Frauen / Juniorinnen" />
+          </label>
+          <label>
+            <span>Plattform</span>
+            <input id="event-group" type="text" placeholder="1" />
+          </label>
+          <label class="toggle-field child-technique-field">
+            <span>Kinder</span>
+            <span class="toggle-row">
+              <input id="child-technique-enabled" type="checkbox" />
+              Technikwertung
+            </span>
+          </label>
+        </form>
+
+        <section class="group-manager">
+          <div class="panel-head compact">
+            <div>
+              <p class="eyebrow">Gruppen</p>
+              <h3>Durchgänge planen</h3>
+            </div>
+          </div>
+          <form id="group-form" class="group-form" autocomplete="off">
+            <label>
+              <span>Neue Gruppe</span>
+              <input id="group-name" type="text" placeholder="A" required />
+            </label>
+            <button type="submit" class="ghost-button">Gruppe hinzufügen</button>
+          </form>
+          <p class="muted">Die Gruppen laufen nacheinander in der unten angezeigten Reihenfolge. Namen können direkt bearbeitet werden.</p>
+          <div id="groups-list" class="groups-list"></div>
+        </section>
+            </section>
+
+            <section class="setup-view" data-setup-view="teams">
+              <section class="group-manager">
+                <div class="panel-head compact">
+                  <div>
+                    <p class="eyebrow">Mannschaften</p>
+                    <h3>Teamwertung planen</h3>
+                  </div>
+                </div>
+                <form id="team-form" class="group-form team-form" autocomplete="off">
+                  <label>
+                    <span>Neue Mannschaft</span>
+                    <input id="team-name" type="text" placeholder="z. B. STC Bavaria I" required />
+                  </label>
+                  <label>
+                    <span>Wertungspl&auml;tze</span>
+                    <input id="team-max-scorers" type="number" min="1" max="10" step="1" value="6" />
+                  </label>
+                  <button type="submit" class="ghost-button">Mannschaft hinzuf&uuml;gen</button>
+                </form>
+                <p class="muted">Standard: Die besten sechs Relativleistungen einer Mannschaft werden zum Mannschaftsergebnis addiert.</p>
+                <div id="teams-list" class="groups-list"></div>
+              </section>
+            </section>
+
+            <section class="setup-view" data-setup-view="network">
+              <form class="event-grid infrastructure-form" autocomplete="off">
+                <label>
+                  <span>Kampfrichter</span>
+                  <select id="referee-count">
+                    <option value="3">3 Kampfrichter</option>
+                    <option value="1">1 Kampfrichter</option>
+                  </select>
+                </label>
+              </form>
+              <section class="connection-panel hidden" id="connection-panel"></section>
+            </section>
+
+            <section class="setup-view" data-setup-view="athletes">
+
+        <form id="athlete-form" class="athlete-form" autocomplete="off">
+          <input id="athlete-start" type="hidden" />
+          <input id="athlete-lot" type="hidden" />
+          <section class="form-section">
+            <div class="form-section-title">
+              <p class="eyebrow">Meldedaten</p>
+              <h3>Athlet anlegen</h3>
+            </div>
+            <label class="wide">
+              <span>Name</span>
+              <input id="athlete-name" type="text" required placeholder="Athletin / Athlet" />
+            </label>
+            <label>
+              <span>Verein</span>
+              <input id="athlete-team" type="text" placeholder="optional" />
+            </label>
+            <label>
+              <span>Mannschaft</span>
+              <select id="athlete-team-id"></select>
+            </label>
+            <label>
+              <span>Gruppe</span>
+              <select id="athlete-group" required></select>
+            </label>
+            <label>
+              <span>Geschlecht / Kategorie</span>
+              <select id="athlete-gender" required></select>
+            </label>
+            <label>
+              <span>Altersklasse</span>
+              <select id="athlete-age-class" required></select>
+            </label>
+            <label>
+              <span>Jahrgang</span>
+              <input id="athlete-birth-year" type="number" min="1900" max="2100" step="1" placeholder="optional" />
+            </label>
+            <label>
+              <span>Gewichtsklasse</span>
+              <select id="athlete-weight-class" required></select>
+            </label>
+            <label>
+              <span>Gemeldete Zweikampfleistung</span>
+              <input id="athlete-entry-total" type="number" min="1" step="1" placeholder="optional" />
+            </label>
+          </section>
+          <div class="form-actions form-actions-full">
+            <button type="submit" class="primary-button" id="save-athlete">Athlet hinzufügen</button>
+            <button type="button" class="ghost-button hidden" id="cancel-edit" data-action="cancel-edit">
+              Abbrechen
+            </button>
+          </div>
+        </form>
+
+        <div class="table-toolbar">
+          <div>
+            <h3>Startliste</h3>
+            <p id="setup-hint">Athleten können vor der Waage angelegt werden. Körpergewicht und Anfangsgewichte werden später ergänzt.</p>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="primary-button" data-action="start-competition" data-testid="start-competition">
+              Wettkampf starten
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Verein</th>
+                <th>Mannschaft</th>
+                <th>Gruppe</th>
+                <th>Geschlecht</th>
+                <th>Altersklasse</th>
+                <th>Jahrgang</th>
+                <th>Gewichtsklasse</th>
+                <th>Gemeldete ZK</th>
+                <th>Stange</th>
+                <th>KG</th>
+                <th>Reißen</th>
+                <th>Stoßen</th>
+                <th>Hinweis</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="athletes-table"></tbody>
+          </table>
+        </div>
+            </section>
+
+            <section class="setup-view" data-setup-view="relative">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">Relativabzugstabelle</p>
+                  <h3>Gewicht & Abzug</h3>
+                </div>
+              </div>
+              <div class="relative-tabs" role="tablist" aria-label="Geschlecht">
+                <button type="button" class="lift-tab active" data-action="set-relative-gender" data-gender="male">Mann</button>
+                <button type="button" class="lift-tab" data-action="set-relative-gender" data-gender="female">Frau</button>
+                <button type="button" class="lift-tab" data-action="set-relative-gender" data-gender="child">Kind</button>
+              </div>
+              <div class="table-wrap relative-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Körpergewicht bis kg</th>
+                      <th>Relativabzug</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="relative-table-body"></tbody>
+                </table>
+              </div>
+              <div class="form-actions dialog-actions">
+                <button type="button" class="ghost-button" data-action="add-relative-row">Zeile hinzufügen</button>
+                <button type="button" class="ghost-button" data-action="reset-relative-table">Standardwerte laden</button>
+              </div>
+            </section>
+
+            <section class="setup-view" data-setup-view="ageFactor">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">Altersfaktor</p>
+                  <h3>Masters-Faktoren</h3>
+                </div>
+              </div>
+              <p class="muted dialog-copy">Diese Tabelle wird nur bei Athletinnen und Athleten der Altersklasse Masters angewendet.</p>
+              <div class="relative-tabs" role="tablist" aria-label="Geschlecht">
+                <button type="button" class="lift-tab active" data-action="set-age-factor-gender" data-gender="male">Mann</button>
+                <button type="button" class="lift-tab" data-action="set-age-factor-gender" data-gender="female">Frau</button>
+              </div>
+              <div class="table-wrap relative-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Alter ab Jahre</th>
+                      <th>Faktor</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="age-factor-table-body"></tbody>
+                </table>
+              </div>
+              <div class="form-actions dialog-actions">
+                <button type="button" class="ghost-button" data-action="add-age-factor-row">Zeile hinzufügen</button>
+                <button type="button" class="ghost-button" data-action="reset-age-factor-table">Standardwerte laden</button>
+              </div>
+            </section>
+
+            <section class="setup-view" data-setup-view="categories">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">Geschlechter / Kategorien</p>
+                  <h3>Auswahl für Athleten</h3>
+                </div>
+              </div>
+              <p class="muted dialog-copy">Diese Liste befüllt das Dropdown „Geschlecht / Kategorie“ beim Anlegen von Athleten. Das Stangengewicht steuert auch die Scheibenanzeige.</p>
+              <div class="table-wrap relative-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Bezeichnung</th>
+                      <th>Stange</th>
+                      <th>Gewichtsklassen</th>
+                      <th>Relativtabelle</th>
+                      <th>Technik</th>
+                      <th>Verschlüsse</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="category-table-body"></tbody>
+                </table>
+              </div>
+              <div class="form-actions dialog-actions">
+                <button type="button" class="ghost-button" data-action="add-category-row">Kategorie hinzufügen</button>
+                <button type="button" class="ghost-button" data-action="reset-categories">Standards laden</button>
+              </div>
+            </section>
+
+            <section class="setup-view" data-setup-view="plates">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">Scheiben</p>
+                  <h3>Scheibenbestand</h3>
+                </div>
+              </div>
+              <p class="muted dialog-copy">Die Scheibenanzeige nutzt nur die hier hinterlegten Scheiben. Größere Werte werden in der Anzeige größer dargestellt.</p>
+              <div class="table-wrap relative-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Gewicht je Scheibe</th>
+                      <th>Farbe</th>
+                      <th>Größe</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="plates-table-body"></tbody>
+                </table>
+              </div>
+              <div class="form-actions dialog-actions">
+                <button type="button" class="ghost-button" data-action="add-plate-row">Scheibe hinzufügen</button>
+                <button type="button" class="ghost-button" data-action="reset-plates">Standards laden</button>
+              </div>
+            </section>
+
+            <section class="setup-view" data-setup-view="support">
+              <div class="support-card">
+                <div class="panel-head compact">
+                  <div>
+                    <p class="eyebrow">Hilfe & Kontakt</p>
+                    <h3>Ansprechpartnerin Software</h3>
+                  </div>
+                </div>
+                <dl class="support-list">
+                  <div>
+                    <dt>Name</dt>
+                    <dd>Marina Leonie Stiglmayr</dd>
+                  </div>
+                  <div>
+                    <dt>E-Mail</dt>
+                    <dd><a href="mailto:mls-management@web.de">mls-management@web.de</a></dd>
+                  </div>
+                  <div>
+                    <dt>Verein</dt>
+                    <dd>STC Bavaria 20 Landshut e. V.</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="competition-layout hidden" id="competition-panel" data-testid="competition-panel">
+        <div class="competition-head">
+          <div>
+            <p class="eyebrow" id="phase-eyebrow">Wettkampf</p>
+            <h2 id="phase-title">Reißen</h2>
+          </div>
+          <div class="competition-head-tools">
+            <img class="club-logo" data-active-logo src="assets/wappen.png" alt="STC Bavaria 20 Landshut e. V." />
+            <div class="phase-controls">
+              <span class="lift-tab" id="snatch-tab">Reißen</span>
+              <span class="lift-tab" id="clean-tab">Stoßen</span>
+              <button type="button" class="ghost-button" data-action="open-plates" title="Scheibenanzeige öffnen">
+                Scheiben
+              </button>
+              <button type="button" class="ghost-button" data-action="open-waiting-room-display" title="Warteraum-Anzeige oeffnen">
+                Warteraum
+              </button>
+              <button type="button" class="ghost-button hidden" data-action="undo-attempt" title="Letzten Versuch entfernen">
+                Rückgängig
+              </button>
+              <button type="button" class="danger-button" data-action="reset-competition" title="Zurück zu den Einstellungen">
+                Einstellungen
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <section id="current-attempt" class="panel current-panel"></section>
+
+        <div class="dashboard-grid">
+          <section class="panel queue-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Reihenfolge</p>
+                <h3>Nächste Versuche</h3>
+              </div>
+              <span id="queue-count" class="status-pill">0</span>
+            </div>
+            <div class="table-wrap tight">
+              <table>
+                <thead id="team-standings-head">
+                  <tr>
+                    <th>Nr.</th>
+                    <th>Athlet</th>
+                    <th>Versuch</th>
+                    <th>kg</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="queue-table"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel team-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Mannschaften</p>
+                <h3>Live-Mannschaftswertung</h3>
+              </div>
+              <span id="team-count" class="status-pill">0</span>
+            </div>
+            <div class="table-wrap tight">
+              <table>
+                <thead id="standings-head">
+                  <tr>
+                    <th>Rang</th>
+                    <th>Mannschaft</th>
+                    <th>Wertende</th>
+                    <th>Relativpunkte</th>
+                    <th>Ohne Ergebnis</th>
+                  </tr>
+                </thead>
+                <tbody id="team-standings-table"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel standings-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Wertung</p>
+                <h3>Zwischenstand</h3>
+              </div>
+              <span id="progress-pill" class="status-pill">0 / 0</span>
+            </div>
+            <div class="table-wrap tight">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rang</th>
+                    <th>Athlet</th>
+                    <th>R</th>
+                    <th>S</th>
+                    <th>Total</th>
+                    <th>Abzug</th>
+                    <th>Nach Abzug</th>
+                  </tr>
+                </thead>
+                <tbody id="standings-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel protocol-panel">
+          <div class="panel-head compact">
+            <div>
+              <p class="eyebrow">Protokoll</p>
+              <h3>Versuchstafel</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Reißen 1</th>
+                  <th>Reißen 2</th>
+                  <th>Reißen 3</th>
+                  <th>Stoßen 1</th>
+                  <th>Stoßen 2</th>
+                  <th>Stoßen 3</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="protocol-table"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <input id="import-file" class="hidden" type="file" accept="application/json,.json" />
+
+    <dialog id="backup-dialog" class="relative-dialog wide-dialog backup-dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Sicherung</p>
+          <h2>Automatische Sicherungen</h2>
+        </div>
+        <button type="button" class="ghost-button" data-action="close-backups">Schließen</button>
+      </div>
+      <p class="muted dialog-copy">
+        Die App speichert nach jeder Änderung automatisch eine Sicherung. Beim Laden wird der Wettkampf auf den ausgewählten Stand zurückgesetzt.
+      </p>
+      <div id="backup-list" class="backup-list">
+        <p class="muted">Sicherungen werden geladen.</p>
+      </div>
+    </dialog>
+
+    <dialog id="weigh-in-dialog" class="relative-dialog wide-dialog weigh-in-dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Waage</p>
+          <h2>Wiegedaten erfassen</h2>
+        </div>
+        <button type="button" class="ghost-button" data-action="close-weigh-in">Schließen</button>
+      </div>
+      <form id="weigh-in-form" class="weigh-in-form" autocomplete="off">
+        <label>
+          <span>Gruppe</span>
+          <select id="weigh-group-filter"></select>
+        </label>
+        <label class="wide">
+          <span>Athlet</span>
+          <select id="weigh-athlete"></select>
+        </label>
+        <label>
+          <span>Körpergewicht</span>
+          <input id="weigh-bodyweight" type="number" min="0" step="0.01" placeholder="kg" />
+        </label>
+        <label>
+          <span>Start Reißen</span>
+          <input id="weigh-snatch" type="number" min="1" step="1" placeholder="kg" />
+        </label>
+        <label>
+          <span>Start Stoßen</span>
+          <input id="weigh-cj" type="number" min="1" step="1" placeholder="kg" />
+        </label>
+        <div id="weigh-athlete-summary" class="weigh-athlete-summary"></div>
+        <div class="form-actions dialog-actions weigh-in-actions">
+          <button type="button" class="ghost-button" data-action="weigh-prev">Vorheriger</button>
+          <button type="button" class="ghost-button" data-action="weigh-next">Nächster</button>
+          <button type="submit" class="primary-button">Speichern</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

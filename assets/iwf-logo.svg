@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 320" role="img" aria-labelledby="title desc">
+  <title id="title">IWF Logo</title>
+  <desc id="desc">Stilisierter Platzhalter fuer das IWF-Logo im IWF-Regelmodus.</desc>
+  <rect width="260" height="320" rx="28" fill="#050b14"/>
+  <g fill="#ffffff">
+    <path d="M112 34c-47 8-82 48-82 96 0 54 44 98 98 98 31 0 59-14 77-37-16 12-36 19-57 19-54 0-98-44-98-98 0-34 17-64 43-82 6-4 12-7 19-10Z"/>
+    <path d="M164 40c41 20 66 56 66 100 0 43-25 80-66 100 29-4 54-16 74-35 27-25 42-57 42-92s-15-67-42-92c-20-19-45-31-74-35v54Z" transform="translate(-20 0)"/>
+    <circle cx="112" cy="130" r="28"/>
+    <path d="M26 260h25v46H26v-46Zm45 0h25l13 46 16-46h22l16 46 13-46h25l-26 46h-25l-14-37-14 37H97l-26-46Zm151 0h54v15h-30v9h25v14h-25v8h-24v-46Z"/>
+  </g>
+</svg>

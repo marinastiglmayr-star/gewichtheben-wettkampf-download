@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kampfrichter Gewichtheben</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="judge.css" />
+    <script src="judge.js" defer></script>
+  </head>
+  <body>
+    <main class="judge-shell">
+      <header class="judge-header">
+        <svg class="brand-mark" viewBox="0 0 64 32" aria-hidden="true">
+          <path d="M3 14h7v4H3v-4Zm10-6h6v16h-6V8Zm9 6h20v4H22v-4Zm23-6h6v16h-6V8Zm9 6h7v4h-7v-4Z" />
+        </svg>
+        <div>
+          <p class="eyebrow">Kampfrichter</p>
+          <h1>Stimme abgeben</h1>
+          <p id="judge-mode-note" class="mode-note">Vereinsmodus</p>
+        </div>
+      </header>
+
+      <section class="panel" id="login-panel">
+        <form id="login-form" class="login-form" autocomplete="off">
+          <label>
+            <span>Verbindungscode</span>
+            <input id="code" inputmode="numeric" maxlength="4" placeholder="1234" required />
+          </label>
+          <label>
+            <span>Name</span>
+            <input id="judge-name" placeholder="Name des Kampfrichters" required />
+          </label>
+          <label id="role-field">
+            <span>Position</span>
+            <select id="role" required>
+              <option value="left">Links</option>
+              <option value="center">Mitte</option>
+              <option value="right">Rechts</option>
+            </select>
+          </label>
+          <p id="login-mode-note" class="mode-note">Im Vereinsmodus richtet sich die Auswahl nach der Wettkampfleitungs-App.</p>
+          <button type="submit" class="primary-button">Verbinden</button>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="vote-panel">
+        <div class="session-row">
+          <div>
+            <p class="eyebrow" id="role-label">Verbunden</p>
+            <h2 id="judge-label">-</h2>
+          </div>
+          <button type="button" class="ghost-button" id="logout">Abmelden</button>
+        </div>
+
+        <div id="attempt-view" class="attempt-view"></div>
+
+        <label id="technique-field" class="technique-field hidden">
+          <span>Technikpunkte</span>
+          <input id="technique-points" type="number" min="0" max="10" step="0.1" placeholder="0,0" />
+        </label>
+
+        <div class="vote-grid">
+          <button type="button" class="vote-button white" data-vote="good">Weiß</button>
+          <button type="button" class="vote-button red" data-vote="bad">Rot</button>
+        </div>
+        <div id="head-actions" class="head-actions hidden">
+          <button type="button" class="primary-button" id="timer-start" data-judge-action="start-timer">Zeit starten</button>
+          <button type="button" class="primary-button" id="timer-toggle" data-judge-action="toggle-timer">Zeit pausieren</button>
+        </div>
+        <p id="status" class="status-text">Warten auf aktuellen Versuch.</p>
+      </section>
+    </main>
+  </body>
+</html>
