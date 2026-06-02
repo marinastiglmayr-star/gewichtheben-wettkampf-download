@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bildschirmstation Gewichtheben</title>
+    <link rel="icon" href="assets/app-icon.ico" />
+    <link rel="stylesheet" href="display.css" />
+    <script src="display.js" defer></script>
+  </head>
+  <body>
+    <main id="waiting-panel" class="display-waiting">
+      <p class="eyebrow">Bildschirmstation</p>
+      <h1 id="display-name">Warten auf Zuweisung</h1>
+      <p id="display-status">Diese Anzeige ist verbunden und wartet auf eine Ansicht.</p>
+      <p id="display-address" class="muted"></p>
+    </main>
+    <iframe id="display-frame" class="display-frame hidden" title="Zugewiesene Wettkampfansicht"></iframe>
+  </body>
+</html>

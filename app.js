@@ -75,6 +75,12 @@ const SCORING_MODES = {
   CLUB: "CLUB",
   IWF: "IWF",
 };
+const DISPLAY_ROLES = [
+  { key: "", label: "Nicht zugewiesen" },
+  { key: "plates", label: "Scheibenanzeige" },
+  { key: "scoreboard", label: "Protokoll und Ergebnisse" },
+  { key: "waitingRoom", label: "Warteraum-Anzeige" },
+];
 
 const CLUB_LOGO_SRC = "assets/wappen.png";
 const IWF_LOGO_SRC = "assets/iwf-logo.svg";
@@ -148,6 +154,7 @@ const emptyState = () => ({
     liveTechnique: { key: null, points: [null, null, null] },
     attemptTimer: null,
     judgeConnections: { solo: null, left: null, center: null, right: null },
+    displayAssignments: {},
   },
   groups: [{ ...DEFAULT_GROUP }],
   categories: createDefaultCategories(),
@@ -182,6 +189,20 @@ const els = {};
 
 function normalizeScoringMode(value) {
   return value === SCORING_MODES.IWF ? SCORING_MODES.IWF : SCORING_MODES.CLUB;
+}
+
+function normalizeDisplayRole(role) {
+  const value = String(role || "");
+  return DISPLAY_ROLES.some((item) => item.key === value) ? value : "";
+}
+
+function normalizeDisplayAssignments(input) {
+  const output = {};
+  for (const [id, role] of Object.entries(input || {})) {
+    const normalizedRole = normalizeDisplayRole(role);
+    if (id && normalizedRole) output[id] = normalizedRole;
+  }
+  return output;
 }
 
 function getScoringMode() {
@@ -297,6 +318,8 @@ function cacheElements() {
     importFile: $("#import-file"),
     backupDialog: $("#backup-dialog"),
     backupList: $("#backup-list"),
+    displayRoutingDialog: $("#display-routing-dialog"),
+    displayRoutingList: $("#display-routing-list"),
     relativeDialog: $("#relative-dialog"),
     relativeTableBody: $("#relative-table-body"),
     ageFactorTableBody: $("#age-factor-table-body"),
@@ -444,6 +467,7 @@ function startEventStream() {
       state.meta.judgeConnections = sessionInfo.judges;
     }
     renderConnection();
+    if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
   });
   eventSource.addEventListener("error", () => {
     showToast("Live-Verbindung zum lokalen Server wird wiederhergestellt.");
@@ -475,9 +499,11 @@ function renderAfterStateSync() {
   syncPhase();
   if (shouldDeferRenderForActiveInput()) {
     renderConnection();
+    if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
     return;
   }
   render();
+  if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
 }
 
 function shouldDeferRenderForActiveInput() {
@@ -488,6 +514,7 @@ function shouldDeferRenderForActiveInput() {
     active.id === "planned-next-weight" ||
     Boolean(active.closest?.("#weigh-in-dialog")) ||
     Boolean(active.closest?.("#backup-dialog")) ||
+    Boolean(active.closest?.("#display-routing-dialog")) ||
     Boolean(active.closest?.("#relative-dialog")) ||
     Boolean(active.closest?.("#plates-dialog")) ||
     Boolean(active.closest?.("#category-dialog")) ||
@@ -525,6 +552,8 @@ function handleClick(event) {
   if (action === "start-competition") startCompetition();
   if (action === "open-plates") openPlateWindow();
   if (action === "open-waiting-room-display") openWaitingRoomDisplayWindow();
+  if (action === "open-display-routing") openDisplayRoutingDialog();
+  if (action === "close-display-routing") closeDisplayRoutingDialog();
   if (action === "open-category-settings") openCategorySettings();
   if (action === "close-category-settings") closeCategorySettings();
   if (action === "add-category-row") addCategoryRow();
@@ -652,6 +681,12 @@ function handleChange(event) {
 
   if (event.target === els.weighAthlete) {
     loadWeighInAthlete(els.weighAthlete.value);
+    return;
+  }
+
+  const displayAssignment = event.target.closest("[data-display-assignment]");
+  if (displayAssignment) {
+    assignDisplayRole(displayAssignment.dataset.id, displayAssignment.value);
     return;
   }
 
@@ -1759,10 +1794,19 @@ function renderConnection() {
   const tabletUrls = sessionInfo?.tabletUrls?.length
     ? sessionInfo.tabletUrls
     : judgeUrls.map((url) => url.replace(/\/judge$/, "/warteraum"));
+  const waitingRoomDisplayUrls = sessionInfo?.waitingRoomDisplayUrls?.length
+    ? sessionInfo.waitingRoomDisplayUrls
+    : judgeUrls.map((url) => url.replace(/\/judge$/, "/pi"));
+  const displayStationUrls = sessionInfo?.displayStationUrls?.length
+    ? sessionInfo.displayStationUrls
+    : judgeUrls.map((url) => url.replace(/\/judge$/, "/display"));
   const pcJudgeUrl = judgeUrls.find((url) => url.includes("localhost")) || "http://localhost:8765/judge";
   const phoneUrls = judgeUrls.filter((url) => !url.includes("localhost"));
   const wlanWeighUrls = weighUrls.filter((url) => !url.includes("localhost"));
   const wlanTabletUrls = tabletUrls.filter((url) => !url.includes("localhost"));
+  const wlanWaitingRoomDisplayUrls = waitingRoomDisplayUrls.filter((url) => !url.includes("localhost"));
+  const wlanDisplayStationUrls = displayStationUrls.filter((url) => !url.includes("localhost"));
+  const displayClients = Array.isArray(sessionInfo?.displayClients) ? sessionInfo.displayClients : [];
   const code = sessionInfo?.code || "----";
   const qrUrl = phoneUrls[0] || pcJudgeUrl;
   const slots = getRefereeSlots();
@@ -1796,12 +1840,26 @@ function renderConnection() {
           ? wlanWeighUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
           : `<p class="warning-text">Keine Waage-WLAN-Adresse gefunden.</p>`
       }
-      <p class="muted">Warteraum im gleichen WLAN</p>
+      <p class="muted">Warteraum-Eingabe im gleichen WLAN</p>
       ${
         wlanTabletUrls.length
           ? wlanTabletUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
           : `<p class="warning-text">Keine Warteraum-WLAN-Adresse gefunden.</p>`
       }
+      <p class="muted">Bildschirmstation fuer Pi / Beamer</p>
+      ${
+        wlanDisplayStationUrls.length
+          ? wlanDisplayStationUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
+          : `<p class="warning-text">Keine Bildschirmstation-Adresse gefunden.</p>`
+      }
+      <button type="button" class="ghost-button" data-action="open-display-routing">Bildschirme zuweisen (${displayClients.length})</button>
+      <p class="muted">Direktlink Warteraum-Anzeige</p>
+      ${
+        wlanWaitingRoomDisplayUrls.length
+          ? wlanWaitingRoomDisplayUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
+          : `<p class="warning-text">Keine Pi-Anzeige-Adresse gefunden.</p>`
+      }
+      <p class="muted">Der Direktlink zeigt nur die Warteraum-Anzeige und benoetigt keinen Login-Code.</p>
       ${renderControlClientStatus()}
       <p class="muted">Wenn das Handy die Seite nicht lädt: Windows-Firewall für node.exe in privaten Netzwerken erlauben und kein Gast-WLAN verwenden.</p>
       <div class="judge-slots">
@@ -1873,6 +1931,89 @@ function renderControlClientStatus() {
       ${waitingRoomRows}
     </div>
   `;
+}
+
+function openDisplayRoutingDialog() {
+  if (!serverMode) {
+    showToast("Bildschirmzuordnung ist nur im Serverbetrieb moeglich.");
+    return;
+  }
+  renderDisplayRoutingDialog();
+  els.displayRoutingDialog.showModal();
+}
+
+function closeDisplayRoutingDialog() {
+  els.displayRoutingDialog.close();
+}
+
+function renderDisplayRoutingDialog() {
+  if (!els.displayRoutingList) return;
+  const displayUrls = sessionInfo?.displayStationUrls?.length
+    ? sessionInfo.displayStationUrls.filter((url) => !url.includes("localhost"))
+    : [];
+  const clients = Array.isArray(sessionInfo?.displayClients) ? sessionInfo.displayClients : [];
+
+  if (!clients.length) {
+    els.displayRoutingList.innerHTML = `
+      <div class="empty-display-routing">
+        <p class="muted">Noch keine Bildschirmstation verbunden.</p>
+        ${
+          displayUrls.length
+            ? `<p class="connection-url">${escapeHtml(displayUrls[0])}</p>`
+            : `<p class="warning-text">Keine Netzwerkadresse gefunden.</p>`
+        }
+      </div>
+    `;
+    return;
+  }
+
+  els.displayRoutingList.innerHTML = clients
+    .map((client) => {
+      const assignment = client.assignment || sessionInfo?.displayAssignments?.[client.id] || "";
+      return `
+        <div class="display-routing-row">
+          <div class="display-device">
+            <strong>${escapeHtml(client.name || "Bildschirm")}</strong>
+            <span class="muted">${escapeHtml(client.address || "Netzwerk")} · verbunden</span>
+          </div>
+          <label>
+            <span>Ansicht</span>
+            <select data-display-assignment data-id="${escapeHtml(client.id)}">
+              ${renderDisplayRoleOptions(assignment)}
+            </select>
+          </label>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderDisplayRoleOptions(selectedRole) {
+  return DISPLAY_ROLES.map(
+    (role) => `<option value="${escapeHtml(role.key)}" ${role.key === selectedRole ? "selected" : ""}>${escapeHtml(role.label)}</option>`,
+  ).join("");
+}
+
+async function assignDisplayRole(id, role) {
+  if (!serverMode || !id) return;
+  try {
+    const response = await fetch("/api/display/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, role }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      showToast(result.error || "Bildschirm konnte nicht zugewiesen werden.");
+      return;
+    }
+    if (result.session) sessionInfo = result.session;
+    renderConnection();
+    renderDisplayRoutingDialog();
+    showToast("Bildschirmzuordnung gespeichert.");
+  } catch (error) {
+    showToast("Bildschirmzuordnung konnte nicht gespeichert werden.");
+  }
 }
 
 function controlClientLabel(client) {
@@ -2148,7 +2289,7 @@ function openScoreboardWindow() {
 }
 
 function openWaitingRoomDisplayWindow() {
-  const waitingRoomWindow = window.open("/warteraum-anzeige", "gewichtheben-warteraum-anzeige", "width=1180,height=760");
+  const waitingRoomWindow = window.open("/pi", "gewichtheben-warteraum-anzeige", "width=1180,height=760");
   if (!waitingRoomWindow) {
     showToast("Warteraum-Anzeige wurde vom Browser blockiert. Bitte Pop-ups erlauben.");
     return;
@@ -4910,6 +5051,7 @@ function normalizeState(input) {
   output.meta.scoringMode = normalizeScoringMode(output.meta.scoringMode);
   if (output.meta.scoringMode === SCORING_MODES.IWF) output.meta.refereeCount = 3;
   output.meta.childTechniqueEnabled = Boolean(output.meta.childTechniqueEnabled);
+  output.meta.displayAssignments = normalizeDisplayAssignments(input?.meta?.displayAssignments || {});
   if (output.meta.scoringMode === SCORING_MODES.IWF) output.meta.judgeConnections.solo = null;
 
   output.groups = ensureAtLeastOneGroup(output.groups)

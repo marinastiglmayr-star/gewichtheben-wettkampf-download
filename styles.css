@@ -524,6 +524,8 @@ body.iwf-mode .support-card,
 body.iwf-mode .connection-panel,
 body.iwf-mode .connection-status-card,
 body.iwf-mode .judge-slot,
+body.iwf-mode .display-routing-row,
+body.iwf-mode .empty-display-routing,
 body.iwf-mode .dialog-copy,
 body.iwf-mode dialog {
   background: var(--surface);
@@ -701,6 +703,37 @@ body.iwf-mode .connection-code {
 
 .relative-table-wrap {
   max-height: 480px;
+}
+
+.display-routing-list {
+  display: grid;
+  gap: 10px;
+}
+
+.display-routing-row,
+.empty-display-routing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.empty-display-routing {
+  grid-template-columns: 1fr;
+}
+
+.display-device {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.display-device strong {
+  font-size: 1.05rem;
 }
 
 .compact-input {

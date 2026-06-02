@@ -19,7 +19,10 @@ const TABLET_CLIENTS = new Map();
 const TABLET_CLIENT_TIMEOUT_MS = 15000;
 const WEIGH_CLIENTS = new Map();
 const WEIGH_CLIENT_TIMEOUT_MS = 15000;
+const DISPLAY_CLIENTS = new Map();
+const DISPLAY_CLIENT_TIMEOUT_MS = 15000;
 const MAX_WAITING_ROOM_CHANGES = 2;
+const DISPLAY_ROLES = new Set(["", "plates", "scoreboard", "waitingRoom"]);
 
 const ROLE_LABELS = {
   solo: "Kampfrichter",
@@ -143,6 +146,8 @@ async function main() {
     for (const url of getLanUrls("/judge")) console.log(`Kampfrichter: ${url}`);
     for (const url of getLanUrls("/waage")) console.log(`Waage: ${url}`);
     for (const url of getLanUrls("/warteraum")) console.log(`Warteraum: ${url}`);
+    for (const url of getLanUrls("/pi")) console.log(`Warteraum-Anzeige: ${url}`);
+    for (const url of getLanUrls("/display")) console.log(`Bildschirmstation: ${url}`);
     console.log(`Verbindungscode: ${sessionCode}`);
   });
 }
@@ -214,6 +219,21 @@ async function route(req, res) {
 
   if (url.pathname === "/api/control/logout" && req.method === "POST") {
     await logoutControlClient(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/display/register" && req.method === "POST") {
+    await registerDisplayClient(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/display/heartbeat" && req.method === "POST") {
+    await heartbeatDisplayClient(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/display/assign" && req.method === "POST") {
+    await assignDisplayClient(req, res);
     return;
   }
 
@@ -388,6 +408,74 @@ async function logoutControlClient(req, res) {
     broadcastSession();
   }
   sendJson(res, 200, { ok: true });
+}
+
+async function registerDisplayClient(req, res) {
+  const body = await readJson(req);
+  const token = String(body.id || body.token || crypto.randomUUID());
+  const now = new Date().toISOString();
+  const existing = DISPLAY_CLIENTS.get(token);
+  const address = getRemoteAddress(req);
+  const name = sanitizeDisplayClientName(body.name || existing?.name || defaultDisplayClientName(req, token));
+
+  DISPLAY_CLIENTS.set(token, {
+    token,
+    name,
+    address,
+    connectedAt: existing?.connectedAt || now,
+    lastSeen: now,
+  });
+
+  cleanupDisplayClients();
+  broadcastSession();
+  sendJson(res, 200, {
+    id: token,
+    name,
+    assignment: getDisplayAssignment(token),
+    session: getSessionPayload(req),
+  });
+}
+
+async function heartbeatDisplayClient(req, res) {
+  const body = await readJson(req);
+  const token = String(body.id || body.token || "");
+  if (!token || !DISPLAY_CLIENTS.has(token)) {
+    await registerDisplayClient(req, res);
+    return;
+  }
+
+  const client = DISPLAY_CLIENTS.get(token);
+  client.lastSeen = new Date().toISOString();
+  if (body.name) client.name = sanitizeDisplayClientName(body.name);
+  cleanupDisplayClients();
+  broadcastSession();
+  sendJson(res, 200, {
+    ok: true,
+    assignment: getDisplayAssignment(token),
+    session: getSessionPayload(req),
+  });
+}
+
+async function assignDisplayClient(req, res) {
+  const body = await readJson(req);
+  const token = String(body.id || body.token || "");
+  const role = normalizeDisplayRole(body.role);
+  if (!token) {
+    sendJson(res, 400, { error: "Bildschirm nicht gefunden." });
+    return;
+  }
+
+  state.meta.displayAssignments = normalizeDisplayAssignments(state.meta.displayAssignments);
+  if (role) state.meta.displayAssignments[token] = role;
+  else delete state.meta.displayAssignments[token];
+
+  await persistState();
+  broadcastSession();
+  sendJson(res, 200, {
+    ok: true,
+    assignment: getDisplayAssignment(token),
+    session: getSessionPayload(req),
+  });
 }
 
 async function registerTabletClient(req, res) {
@@ -1208,6 +1296,7 @@ function broadcastState() {
 
 function broadcastSession() {
   cleanupControlClients();
+  cleanupDisplayClients();
   for (const client of CLIENTS) sendEvent(client, "session", getSessionPayload());
 }
 
@@ -1226,11 +1315,13 @@ async function serveStatic(urlPath, res) {
           ? "tablet.html"
         : urlPath === "/waage"
           ? "weigh.html"
+        : urlPath === "/display"
+          ? "display.html"
         : urlPath === "/plates"
           ? "plates.html"
           : urlPath === "/scoreboard"
             ? "scoreboard.html"
-            : urlPath === "/warteraum-anzeige"
+            : urlPath === "/warteraum-anzeige" || urlPath === "/pi"
               ? "warteraum-display.html"
               : urlPath.replace(/^\/+/, "");
   const safePath = path.normalize(fileName).replace(/^(\.\.(\/|\\|$))+/, "");
@@ -1418,6 +1509,7 @@ function defaultState() {
       liveTechnique: { key: null, points: [null, null, null] },
       attemptTimer: null,
       judgeConnections: { solo: null, left: null, center: null, right: null },
+      displayAssignments: {},
     },
     groups: [{ ...DEFAULT_GROUP }],
     categories: DEFAULT_CATEGORIES.map((category) => ({ ...category })),
@@ -1487,6 +1579,7 @@ function normalizeState(input) {
   next.meta.scoringMode = next.meta.scoringMode === "IWF" ? "IWF" : "CLUB";
   if (next.meta.scoringMode === "IWF") next.meta.refereeCount = 3;
   next.meta.childTechniqueEnabled = Boolean(next.meta.childTechniqueEnabled);
+  next.meta.displayAssignments = normalizeDisplayAssignments(input?.meta?.displayAssignments || {});
   if (next.meta.scoringMode === "IWF") next.meta.judgeConnections.solo = null;
 
   next.groups = ensureAtLeastOneGroup(next.groups)
@@ -1922,6 +2015,20 @@ function sanitizeWeighClients() {
     }));
 }
 
+function sanitizeDisplayClients() {
+  cleanupDisplayClients();
+  return [...DISPLAY_CLIENTS.values()]
+    .sort((a, b) => String(a.connectedAt).localeCompare(String(b.connectedAt)))
+    .map((client) => ({
+      id: client.token,
+      name: client.name,
+      address: client.address,
+      assignment: getDisplayAssignment(client.token),
+      connectedAt: client.connectedAt,
+      lastSeen: client.lastSeen,
+    }));
+}
+
 function cleanupControlClients() {
   const now = Date.now();
   for (const [token, client] of CONTROL_CLIENTS.entries()) {
@@ -1952,6 +2059,16 @@ function cleanupWeighClients() {
   }
 }
 
+function cleanupDisplayClients() {
+  const now = Date.now();
+  for (const [token, client] of DISPLAY_CLIENTS.entries()) {
+    const lastSeen = new Date(client.lastSeen).getTime();
+    if (!Number.isFinite(lastSeen) || now - lastSeen > DISPLAY_CLIENT_TIMEOUT_MS) {
+      DISPLAY_CLIENTS.delete(token);
+    }
+  }
+}
+
 function getTabletForToken(token) {
   const tablet = TABLET_CLIENTS.get(String(token || ""));
   if (!tablet) return null;
@@ -1975,6 +2092,35 @@ function defaultTabletClientName(req) {
 
 function defaultWeighClientName() {
   return "Waage";
+}
+
+function defaultDisplayClientName(req, token) {
+  const address = getRemoteAddress(req);
+  const suffix = String(token || "").slice(0, 4).toUpperCase();
+  return `Bildschirm ${address}${suffix ? ` ${suffix}` : ""}`;
+}
+
+function sanitizeDisplayClientName(value) {
+  const name = String(value || "").trim();
+  return name ? name.slice(0, 80) : "Bildschirm";
+}
+
+function normalizeDisplayRole(role) {
+  const normalized = String(role || "");
+  return DISPLAY_ROLES.has(normalized) ? normalized : "";
+}
+
+function normalizeDisplayAssignments(input) {
+  const output = {};
+  for (const [token, role] of Object.entries(input || {})) {
+    const normalizedRole = normalizeDisplayRole(role);
+    if (token && normalizedRole) output[String(token)] = normalizedRole;
+  }
+  return output;
+}
+
+function getDisplayAssignment(token) {
+  return normalizeDisplayRole(state.meta.displayAssignments?.[String(token || "")]);
 }
 
 function getRemoteAddress(req) {
@@ -2019,11 +2165,17 @@ function getSessionPayload(req) {
     weighUrls: getLanUrls("/waage"),
     tabletUrl: `http://${host}/warteraum`,
     tabletUrls: getLanUrls("/warteraum"),
+    waitingRoomDisplayUrl: `http://${host}/pi`,
+    waitingRoomDisplayUrls: getLanUrls("/pi"),
+    displayStationUrl: `http://${host}/display`,
+    displayStationUrls: getLanUrls("/display"),
     refereeCount: getRefereeCount(),
     judges: sanitizeJudges(),
     controlClients: sanitizeControlClients(),
     weighClients: sanitizeWeighClients(),
     tabletClients: sanitizeTabletClients(),
+    displayClients: sanitizeDisplayClients(),
+    displayAssignments: normalizeDisplayAssignments(state.meta.displayAssignments),
   };
 }
 

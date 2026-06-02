@@ -19,6 +19,24 @@ Auf der PC-Seite wird zusätzlich ein QR-Code angezeigt. Der QR-Code öffnet nur
 
 Ein zweiter PC kann im gleichen WLAN die angezeigte Wettkampfleitungs-Adresse ohne `/judge` öffnen, zum Beispiel `http://192.168.178.53:8765/`. Beide PCs arbeiten dann live auf demselben lokalen Server. Im Setup wird angezeigt, ob ein weiterer PC online ist. Praktisch sollte trotzdem nur eine Person gleichzeitig denselben Datensatz bearbeiten, weil gleichzeitige Änderungen zuletzt gespeicherte Werte überschreiben können.
 
+Der Warteraum hat zwei getrennte Adressen:
+
+- `/warteraum` ist die Eingabe-Seite fuer Athleten/Trainer, um erlaubte Versuchsgewichte zu aendern.
+- `/display` ist die steuerbare Bildschirmstation fuer Pi, Beamer oder Zusatzbildschirme. Im Reiter Netzwerk kann dann zugewiesen werden, ob dort Scheibenanzeige, Protokoll/Ergebnisse oder Warteraum-Anzeige laufen soll.
+- `/pi` ist der direkte Link zur reinen Warteraum-Bildschirmanzeige ohne Login und ohne Eingabe.
+
+Beispiel fuer einen Raspberry Pi, der ueber das Netzwerk zugewiesen werden soll:
+
+```text
+http://192.168.178.53:8765/display
+```
+
+Beispiel fuer einen festen Warteraum-Bildschirm ohne Zuordnung:
+
+```text
+http://192.168.178.53:8765/pi
+```
+
 Wenn die Adresse am Handy nicht lädt:
 
 - PC und Handy müssen im gleichen WLAN sein. Ein Gast-WLAN blockiert oft andere Geräte.
