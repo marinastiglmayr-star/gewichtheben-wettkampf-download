@@ -277,6 +277,11 @@ async function route(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/weigh/athlete-missing" && req.method === "POST") {
+    await updateWeighAthleteMissing(req, res);
+    return;
+  }
+
   if (url.pathname === "/api/qr.svg" && req.method === "GET") {
     const data = url.searchParams.get("data") || "";
     if (!data) {
@@ -736,6 +741,40 @@ async function updateWeighAthleteData(req, res) {
   sendJson(res, 200, { ok: true, state });
 }
 
+async function updateWeighAthleteMissing(req, res) {
+  const body = await readJson(req);
+  const client = getWeighClientForToken(body.token);
+  if (!client) {
+    sendJson(res, 401, { error: "Waage nicht angemeldet" });
+    return;
+  }
+  client.lastSeen = new Date().toISOString();
+
+  const athlete = state.athletes.find((item) => item.id === String(body.athleteId || ""));
+  if (!athlete) {
+    sendJson(res, 404, { error: "Athlet nicht gefunden." });
+    return;
+  }
+
+  if (hasAnyRecordedAttempt(athlete)) {
+    sendJson(res, 409, { error: "Athlet hat bereits Versuche im Wettkampf." });
+    return;
+  }
+
+  if (state.meta.mode !== "setup" && state.meta.activeGroupId && getAthleteGroupId(athlete) === state.meta.activeGroupId) {
+    sendJson(res, 409, { error: "Die aktive Gruppe kann an der Waage nicht als fehlend markiert werden." });
+    return;
+  }
+
+  athlete.withdrawn = Boolean(body.missing);
+  state = normalizeState(state);
+  syncPhase();
+  await persistState();
+  broadcastSession();
+  broadcastState();
+  sendJson(res, 200, { ok: true, state });
+}
+
 async function recordJudgeVote(req, res) {
   const body = await readJson(req);
   const role = getRoleForToken(body.token);
@@ -1153,7 +1192,7 @@ function ensureAttemptTimerForCurrent(previousAthleteId = null) {
 
 function firstPendingGroupId() {
   const group = getOrderedGroups().find(
-    (item) => athletesForGroup(item.id).length > 0 && !item.completed,
+    (item) => athletesForGroup(item.id).some((athlete) => !athlete.withdrawn) && !item.completed,
   );
   return group?.id || null;
 }
@@ -1483,6 +1522,10 @@ function countStateAttempts(source) {
       sum + (athlete.attempts?.snatch || []).length + (athlete.attempts?.cleanJerk || []).length,
     0,
   );
+}
+
+function hasAnyRecordedAttempt(athlete) {
+  return Boolean((athlete?.attempts?.snatch || []).length || (athlete?.attempts?.cleanJerk || []).length);
 }
 
 function groupNameById(id, source = state) {

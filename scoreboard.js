@@ -303,6 +303,7 @@ function renderIwfTeams(target) {
 
 function getStandings(athletes) {
   return athletes
+    .filter((athlete) => !athlete.withdrawn)
     .map((athlete) => {
       const snatch = bestWeight(athlete, "snatch");
       const cleanJerk = bestWeight(athlete, "cleanJerk");
@@ -339,11 +340,12 @@ function getStandings(athletes) {
 }
 
 function getTeamStandings(athletes) {
-  const individualRows = getStandings(athletes);
+  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn);
+  const individualRows = getStandings(eligibleAthletes);
   const rowByAthlete = new Map(individualRows.map((row) => [row.athlete.id, row]));
   return getTeams()
     .map((team) => {
-      const members = athletes.filter((athlete) => athlete.teamId === team.id);
+      const members = eligibleAthletes.filter((athlete) => athlete.teamId === team.id);
       const validRows = members
         .map((athlete) => rowByAthlete.get(athlete.id))
         .filter((row) => row && row.total && Number.isFinite(row.score));
@@ -418,7 +420,8 @@ function getIwfStandings(athletes) {
 }
 
 function getIwfRankMaps(athletes) {
-  const results = (athletes || []).map(calculateIwfAthleteResult);
+  const eligibleAthletes = (athletes || []).filter((athlete) => !athlete.withdrawn);
+  const results = eligibleAthletes.map(calculateIwfAthleteResult);
   const byClass = new Map();
   for (const row of results) {
     if (!byClass.has(row.classificationKey)) byClass.set(row.classificationKey, []);
@@ -439,11 +442,12 @@ function getIwfRankMaps(athletes) {
 }
 
 function calculateIwfTeamPoints(athletes) {
-  const ranks = getIwfRankMaps(athletes);
+  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn);
+  const ranks = getIwfRankMaps(eligibleAthletes);
   const rowByAthlete = new Map(ranks.results.map((row) => [row.athlete.id, row]));
   return getTeams()
     .map((team) => {
-      const members = athletes.filter((athlete) => athlete.teamId === team.id);
+      const members = eligibleAthletes.filter((athlete) => athlete.teamId === team.id);
       const athleteRows = members.map((athlete) => {
         const row = rowByAthlete.get(athlete.id) || calculateIwfAthleteResult(athlete);
         const snatchRank = ranks.snatch.get(athlete.id) || null;

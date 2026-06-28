@@ -157,7 +157,8 @@ body.iwf-mode select {
 }
 
 .primary-button,
-.ghost-button {
+.ghost-button,
+.danger-button {
   min-height: 46px;
   border: 1px solid transparent;
   border-radius: 7px;
@@ -176,9 +177,21 @@ body.iwf-mode select {
   color: var(--ink);
 }
 
+.danger-button {
+  border-color: rgba(180, 35, 24, 0.32);
+  background: #fff;
+  color: var(--danger);
+}
+
 body.iwf-mode .ghost-button {
   background: #101f34;
   color: var(--ink);
+}
+
+body.iwf-mode .danger-button {
+  border-color: rgba(255, 122, 122, 0.42);
+  background: #1d1722;
+  color: var(--danger);
 }
 
 button:disabled,
@@ -231,6 +244,11 @@ select option.weigh-status-complete {
 select option.weigh-status-partial {
   background: var(--partial);
   color: #6f4c00;
+}
+
+select option.weigh-status-missing {
+  background: #f7d7d4;
+  color: #7f1d1d;
 }
 
 .muted {

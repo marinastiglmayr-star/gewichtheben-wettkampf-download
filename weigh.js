@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     athleteSummary: $("#athlete-summary"),
     prevAthlete: $("#prev-athlete"),
     nextAthlete: $("#next-athlete"),
+    markMissing: $("#mark-missing"),
     status: $("#status"),
     modeNote: $("#mode-note"),
   });
@@ -40,6 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   els.athlete.addEventListener("change", loadSelectedAthlete);
   els.prevAthlete.addEventListener("click", () => moveSelection(-1));
   els.nextAthlete.addEventListener("click", () => moveSelection(1));
+  els.markMissing.addEventListener("click", toggleMissing);
 
   await loadState();
   startEvents();
@@ -91,6 +93,11 @@ async function logout() {
 async function saveWeighData(event) {
   event.preventDefault();
   if (!auth?.token || !els.athlete.value) return;
+  const athlete = findAthlete(els.athlete.value);
+  if (!canEditWeighData(athlete)) {
+    setStatus("Waagedaten koennen nur in der Vorbereitung geaendert werden.");
+    return;
+  }
   const response = await fetch("/api/weigh/athlete-data", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -109,6 +116,33 @@ async function saveWeighData(event) {
   }
   if (result.state) state = normalizeState(result.state);
   setStatus("Waagedaten gespeichert.");
+  render();
+}
+
+async function toggleMissing() {
+  if (!auth?.token || !els.athlete.value) return;
+  const athlete = findAthlete(els.athlete.value);
+  if (!canToggleMissing(athlete)) {
+    setStatus(missingDisabledReason(athlete));
+    return;
+  }
+  const nextMissing = !athlete.withdrawn;
+  const response = await fetch("/api/weigh/athlete-missing", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token: auth.token,
+      athleteId: athlete.id,
+      missing: nextMissing,
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    setStatus(result.error || "Status konnte nicht gespeichert werden.");
+    return;
+  }
+  if (result.state) state = normalizeState(result.state);
+  setStatus(nextMissing ? "Athlet als fehlend markiert." : "Fehlend-Markierung entfernt.");
   render();
 }
 
@@ -168,7 +202,7 @@ function render() {
   renderGroupFilter();
   renderAthleteOptions();
   loadSelectedAthlete();
-  setFormDisabled(state?.meta?.mode !== "setup");
+  updateFormAvailability();
 }
 
 function renderGroupFilter() {
@@ -190,7 +224,10 @@ function renderAthleteOptions() {
   const selected = els.athlete.value;
   const athletes = getFilteredAthletes();
   els.athlete.innerHTML = athletes
-    .map((athlete, index) => `<option value="${escapeHtml(athlete.id)}">${index + 1}. ${escapeHtml(athlete.name)}</option>`)
+    .map((athlete, index) => {
+      const suffix = athlete.withdrawn ? " - fehlend" : "";
+      return `<option value="${escapeHtml(athlete.id)}">${index + 1}. ${escapeHtml(athlete.name)}${suffix}</option>`;
+    })
     .join("");
   Array.from(els.athlete.options).forEach((option) => {
     const athlete = findAthlete(option.value);
@@ -216,7 +253,9 @@ function loadSelectedAthlete() {
     <div><span>Name</span><strong>${escapeHtml(athlete.name)}</strong></div>
     <div><span>Gruppe</span><strong>${escapeHtml(groupNameById(athlete.groupId))}</strong></div>
     <div><span>Verein</span><strong>${escapeHtml(athlete.team || "-")}</strong></div>
+    <div><span>Status</span><strong>${athlete.withdrawn ? "fehlend" : "anwesend"}</strong></div>
   `;
+  updateFormAvailability();
 }
 
 function moveSelection(direction) {
@@ -229,15 +268,48 @@ function moveSelection(direction) {
   loadSelectedAthlete();
 }
 
-function setFormDisabled(disabled) {
-  els.weighForm.querySelectorAll("input, select, button").forEach((control) => {
-    if (control.id === "logout") return;
-    control.disabled = Boolean(disabled);
+function updateFormAvailability() {
+  const athlete = findAthlete(els.athlete.value);
+  const dataDisabled = !canEditWeighData(athlete);
+  [els.bodyweight, els.snatch, els.cleanJerk].forEach((control) => {
+    control.disabled = dataDisabled;
   });
-  if (disabled) setStatus("Waage ist nur in der Vorbereitung moeglich.");
+  const saveButton = els.weighForm.querySelector("button[type='submit']");
+  if (saveButton) saveButton.disabled = dataDisabled;
+  els.groupFilter.disabled = false;
+  els.athlete.disabled = false;
+  els.prevAthlete.disabled = false;
+  els.nextAthlete.disabled = false;
+  els.markMissing.disabled = !canToggleMissing(athlete);
+  els.markMissing.textContent = athlete?.withdrawn ? "Fehlend zuruecknehmen" : "Als fehlend markieren";
+  if (!athlete) setStatus("Kein Athlet ausgewaehlt.");
+  else if (dataDisabled && state?.meta?.mode !== "setup") setStatus("Waagedaten sind im laufenden Wettkampf gesperrt. Fehlend-Markierung bleibt fuer spaetere Gruppen moeglich.");
+  else if (athlete.withdrawn) setStatus("Athlet ist als fehlend markiert.");
+  else setStatus("Bereit.");
+}
+
+function canEditWeighData(athlete) {
+  return Boolean(athlete) && !athlete.withdrawn && state?.meta?.mode === "setup";
+}
+
+function canToggleMissing(athlete) {
+  if (!athlete) return false;
+  if (hasAnyRecordedAttempt(athlete)) return false;
+  if (state?.meta?.mode !== "setup" && state?.meta?.activeGroupId && getAthleteGroupId(athlete) === state.meta.activeGroupId) return false;
+  return true;
+}
+
+function missingDisabledReason(athlete) {
+  if (!athlete) return "Kein Athlet ausgewaehlt.";
+  if (hasAnyRecordedAttempt(athlete)) return "Athlet hat bereits Versuche im Wettkampf.";
+  if (state?.meta?.mode !== "setup" && state?.meta?.activeGroupId && getAthleteGroupId(athlete) === state.meta.activeGroupId) {
+    return "Die aktuell laufende Gruppe kann an der Waage nicht als fehlend markiert werden.";
+  }
+  return "Status kann aktuell nicht geaendert werden.";
 }
 
 function weighStatus(athlete) {
+  if (athlete.withdrawn) return "missing";
   const values = [athlete.bodyweight, athlete.openers?.snatch, athlete.openers?.cleanJerk];
   const filled = values.filter((value) => value !== null && value !== undefined && value !== "").length;
   if (filled === values.length) return "complete";
@@ -262,6 +334,10 @@ function getAthleteGroupId(athlete) {
 
 function groupNameById(id) {
   return getOrderedGroups().find((group) => group.id === id)?.name || "-";
+}
+
+function hasAnyRecordedAttempt(athlete) {
+  return Boolean((athlete?.attempts?.snatch || []).length || (athlete?.attempts?.cleanJerk || []).length);
 }
 
 function isEditingWeighInput() {

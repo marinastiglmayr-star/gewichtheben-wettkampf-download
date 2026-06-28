@@ -525,6 +525,7 @@ body.iwf-mode .connection-panel,
 body.iwf-mode .connection-status-card,
 body.iwf-mode .judge-slot,
 body.iwf-mode .display-routing-row,
+body.iwf-mode .window-screen-row,
 body.iwf-mode .empty-display-routing,
 body.iwf-mode .dialog-copy,
 body.iwf-mode dialog {
@@ -705,12 +706,14 @@ body.iwf-mode .connection-code {
   max-height: 480px;
 }
 
-.display-routing-list {
+.display-routing-list,
+.window-screen-list {
   display: grid;
   gap: 10px;
 }
 
 .display-routing-row,
+.window-screen-row,
 .empty-display-routing {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
@@ -720,6 +723,10 @@ body.iwf-mode .connection-code {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+}
+
+.window-screen-row {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 420px);
 }
 
 .empty-display-routing {

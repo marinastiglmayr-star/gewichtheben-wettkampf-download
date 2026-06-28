@@ -615,6 +615,26 @@
       </div>
     </dialog>
 
+    <dialog id="window-screen-dialog" class="relative-dialog wide-dialog window-screen-dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">PC-Fenster</p>
+          <h2>Fenster auf Bildschirme legen</h2>
+        </div>
+        <button type="button" class="ghost-button" data-action="close-window-screen-settings">Schliessen</button>
+      </div>
+      <p class="muted dialog-copy">
+        Diese Zuordnung gilt nur fuer diesen PC. Beim Erkennen angeschlossener Bildschirme kann Chrome eine Berechtigung abfragen.
+      </p>
+      <div class="dialog-actions">
+        <button type="button" class="ghost-button" data-action="refresh-local-screens">Bildschirme erkennen</button>
+      </div>
+      <div id="window-screen-list" class="window-screen-list">
+        <p class="muted">Bildschirme werden geladen.</p>
+      </div>
+      <p id="window-screen-status" class="muted dialog-copy"></p>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </body>
 </html>

@@ -371,13 +371,14 @@ function attemptKey(item) {
 
 function getRelevantAthletes() {
   const groupId = state?.meta?.activeGroupId;
-  const athletes = Array.isArray(state?.athletes) ? state.athletes : [];
+  const athletes = (Array.isArray(state?.athletes) ? state.athletes : []).filter((athlete) => !athlete.withdrawn);
   const inGroup = groupId ? athletes.filter((athlete) => getAthleteGroupId(athlete) === groupId) : [];
   return inGroup.length ? inGroup : athletes;
 }
 
 function getClubStandings(athletes) {
   return (athletes || [])
+    .filter((athlete) => !athlete.withdrawn)
     .map((athlete) => {
       const snatch = bestWeight(athlete, "snatch");
       const cleanJerk = bestWeight(athlete, "cleanJerk");
@@ -428,7 +429,7 @@ function getIwfStandings(athletes) {
 }
 
 function getIwfRankMaps(athletes) {
-  const results = (athletes || []).map(calculateIwfAthleteResult);
+  const results = (athletes || []).filter((athlete) => !athlete.withdrawn).map(calculateIwfAthleteResult);
   const byClass = new Map();
   for (const row of results) {
     if (!byClass.has(row.classificationKey)) byClass.set(row.classificationKey, []);

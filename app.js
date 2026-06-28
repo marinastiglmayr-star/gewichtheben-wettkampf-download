@@ -2,6 +2,7 @@
 
 const STORE_KEY = "gewichtheben-wettkampf-v1";
 const CONTROL_CLIENT_KEY = "gewichtheben-wettkampf-control-client";
+const WINDOW_SCREEN_ASSIGNMENTS_KEY = "gewichtheben-window-screen-assignments";
 
 const LIFTS = {
   snatch: { label: "Reißen", short: "R" },
@@ -80,6 +81,32 @@ const DISPLAY_ROLES = [
   { key: "plates", label: "Scheibenanzeige" },
   { key: "scoreboard", label: "Protokoll und Ergebnisse" },
   { key: "waitingRoom", label: "Warteraum-Anzeige" },
+];
+const LOCAL_WINDOW_TARGETS = [
+  {
+    key: "plates",
+    label: "Scheibensteckeranzeige",
+    path: "/plates",
+    windowName: "gewichtheben-plates",
+    width: 1100,
+    height: 760,
+  },
+  {
+    key: "scoreboard",
+    label: "Protokoll und Ergebnisse",
+    path: "/scoreboard",
+    windowName: "gewichtheben-scoreboard",
+    width: 1180,
+    height: 760,
+  },
+  {
+    key: "waitingRoom",
+    label: "Warteraum-Anzeige",
+    path: "/pi",
+    windowName: "gewichtheben-warteraum-anzeige",
+    width: 1180,
+    height: 760,
+  },
 ];
 
 const CLUB_LOGO_SRC = "assets/wappen.png";
@@ -182,6 +209,9 @@ let eventSource = null;
 let syncTimer = null;
 let serverSaveInFlight = 0;
 let serverSaveChain = Promise.resolve();
+let localWindowScreenAssignments = loadWindowScreenAssignments();
+let localScreens = [];
+let localScreenDetectionMessage = "";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -320,6 +350,9 @@ function cacheElements() {
     backupList: $("#backup-list"),
     displayRoutingDialog: $("#display-routing-dialog"),
     displayRoutingList: $("#display-routing-list"),
+    windowScreenDialog: $("#window-screen-dialog"),
+    windowScreenList: $("#window-screen-list"),
+    windowScreenStatus: $("#window-screen-status"),
     relativeDialog: $("#relative-dialog"),
     relativeTableBody: $("#relative-table-body"),
     ageFactorTableBody: $("#age-factor-table-body"),
@@ -515,6 +548,7 @@ function shouldDeferRenderForActiveInput() {
     Boolean(active.closest?.("#weigh-in-dialog")) ||
     Boolean(active.closest?.("#backup-dialog")) ||
     Boolean(active.closest?.("#display-routing-dialog")) ||
+    Boolean(active.closest?.("#window-screen-dialog")) ||
     Boolean(active.closest?.("#relative-dialog")) ||
     Boolean(active.closest?.("#plates-dialog")) ||
     Boolean(active.closest?.("#category-dialog")) ||
@@ -554,6 +588,9 @@ function handleClick(event) {
   if (action === "open-waiting-room-display") openWaitingRoomDisplayWindow();
   if (action === "open-display-routing") openDisplayRoutingDialog();
   if (action === "close-display-routing") closeDisplayRoutingDialog();
+  if (action === "open-window-screen-settings") openWindowScreenDialog();
+  if (action === "close-window-screen-settings") closeWindowScreenDialog();
+  if (action === "refresh-local-screens") refreshLocalScreens({ notify: true });
   if (action === "open-category-settings") openCategorySettings();
   if (action === "close-category-settings") closeCategorySettings();
   if (action === "add-category-row") addCategoryRow();
@@ -687,6 +724,12 @@ function handleChange(event) {
   const displayAssignment = event.target.closest("[data-display-assignment]");
   if (displayAssignment) {
     assignDisplayRole(displayAssignment.dataset.id, displayAssignment.value);
+    return;
+  }
+
+  const windowScreenAssignment = event.target.closest("[data-window-screen-assignment]");
+  if (windowScreenAssignment) {
+    setWindowScreenAssignment(windowScreenAssignment.dataset.target, windowScreenAssignment.value);
     return;
   }
 
@@ -1178,7 +1221,6 @@ function startCompetition() {
     group.cleanJerkCompleted = false;
   });
   state.athletes.forEach((athlete) => {
-    athlete.withdrawn = false;
     athlete.attempts = { snatch: [], cleanJerk: [] };
     athlete.next = {
       snatch: athlete.openers.snatch,
@@ -1853,6 +1895,7 @@ function renderConnection() {
           : `<p class="warning-text">Keine Bildschirmstation-Adresse gefunden.</p>`
       }
       <button type="button" class="ghost-button" data-action="open-display-routing">Bildschirme zuweisen (${displayClients.length})</button>
+      <button type="button" class="ghost-button" data-action="open-window-screen-settings">PC-Fenster zuordnen</button>
       <p class="muted">Direktlink Warteraum-Anzeige</p>
       ${
         wlanWaitingRoomDisplayUrls.length
@@ -2014,6 +2057,160 @@ async function assignDisplayRole(id, role) {
   } catch (error) {
     showToast("Bildschirmzuordnung konnte nicht gespeichert werden.");
   }
+}
+
+async function openWindowScreenDialog() {
+  await refreshLocalScreens({ notify: false });
+  renderWindowScreenDialog();
+  if (typeof els.windowScreenDialog.showModal === "function") {
+    els.windowScreenDialog.showModal();
+  } else {
+    els.windowScreenDialog.setAttribute("open", "");
+  }
+}
+
+function closeWindowScreenDialog() {
+  if (els.windowScreenDialog?.open) els.windowScreenDialog.close();
+}
+
+async function refreshLocalScreens(options = {}) {
+  localScreens = await detectLocalScreens();
+  renderWindowScreenDialog();
+  if (options.notify) {
+    showToast(localScreens.length > 1 ? `${localScreens.length} Bildschirme erkannt.` : "Ein Bildschirm erkannt.");
+  }
+}
+
+async function detectLocalScreens() {
+  localScreenDetectionMessage = "";
+  if ("getScreenDetails" in window) {
+    try {
+      const details = await window.getScreenDetails();
+      const screens = Array.from(details.screens || []).map(normalizeLocalScreen);
+      if (screens.length) return screens;
+    } catch (error) {
+      localScreenDetectionMessage = "Chrome hat die Bildschirmfreigabe nicht erteilt. Bitte die Abfrage erlauben.";
+    }
+  } else {
+    localScreenDetectionMessage = "Dieser Browser kann angeschlossene Bildschirme nicht automatisch auflisten.";
+  }
+  return [fallbackLocalScreen()];
+}
+
+function normalizeLocalScreen(screen, index) {
+  const left = Math.round(Number(screen.availLeft ?? screen.left ?? 0));
+  const top = Math.round(Number(screen.availTop ?? screen.top ?? 0));
+  const width = Math.round(Number(screen.availWidth ?? screen.width ?? 1280));
+  const height = Math.round(Number(screen.availHeight ?? screen.height ?? 720));
+  const id = localScreenId({ left, top, width, height });
+  const label = screen.label || `Bildschirm ${index + 1}${screen.isPrimary ? " (Hauptbildschirm)" : ""}`;
+  return { id, label, left, top, width, height, isPrimary: Boolean(screen.isPrimary) };
+}
+
+function fallbackLocalScreen() {
+  const left = Math.round(Number(screen.availLeft ?? 0));
+  const top = Math.round(Number(screen.availTop ?? 0));
+  const width = Math.round(Number(screen.availWidth || screen.width || window.innerWidth || 1280));
+  const height = Math.round(Number(screen.availHeight || screen.height || window.innerHeight || 720));
+  return {
+    id: localScreenId({ left, top, width, height }),
+    label: "Aktueller Bildschirm",
+    left,
+    top,
+    width,
+    height,
+    isPrimary: true,
+  };
+}
+
+function localScreenId(screenInfo) {
+  return `${screenInfo.left}:${screenInfo.top}:${screenInfo.width}x${screenInfo.height}`;
+}
+
+function renderWindowScreenDialog() {
+  if (!els.windowScreenList) return;
+  if (!localScreens.length) localScreens = [fallbackLocalScreen()];
+  els.windowScreenList.innerHTML = LOCAL_WINDOW_TARGETS.map((target) => {
+    const assignment = localWindowScreenAssignments[target.key];
+    const selected = assignment?.id || "";
+    const screenOptions =
+      selected && !localScreens.some((screenInfo) => screenInfo.id === selected)
+        ? [assignment, ...localScreens]
+        : localScreens;
+    return `
+      <div class="window-screen-row">
+        <div class="display-device">
+          <strong>${escapeHtml(target.label)}</strong>
+          <span class="muted">${escapeHtml(target.path)}</span>
+        </div>
+        <label>
+          <span>Bildschirm</span>
+          <select data-window-screen-assignment data-target="${escapeHtml(target.key)}">
+            <option value="" ${selected ? "" : "selected"}>Standard / aktueller Bildschirm</option>
+            ${screenOptions
+              .map(
+                (screenInfo) =>
+                  `<option value="${escapeHtml(screenInfo.id)}" ${screenInfo.id === selected ? "selected" : ""}>${escapeHtml(screenLabel(screenInfo))}</option>`,
+              )
+              .join("")}
+          </select>
+        </label>
+      </div>
+    `;
+  }).join("");
+  if (els.windowScreenStatus) {
+    els.windowScreenStatus.textContent =
+      localScreenDetectionMessage ||
+      "Die Fenster werden beim Start des Wettkampfs auf den gewaehlten Bildschirmen geoeffnet.";
+  }
+}
+
+function screenLabel(screenInfo) {
+  return `${screenInfo.label} - ${screenInfo.width} x ${screenInfo.height}${screenInfo.left || screenInfo.top ? ` - Position ${screenInfo.left}/${screenInfo.top}` : ""}`;
+}
+
+function setWindowScreenAssignment(targetKey, screenId) {
+  if (!LOCAL_WINDOW_TARGETS.some((target) => target.key === targetKey)) return;
+  const selectedScreen = localScreens.find((screenInfo) => screenInfo.id === screenId);
+  if (selectedScreen) localWindowScreenAssignments[targetKey] = { ...selectedScreen };
+  else delete localWindowScreenAssignments[targetKey];
+  saveWindowScreenAssignments();
+  renderWindowScreenDialog();
+}
+
+function loadWindowScreenAssignments() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WINDOW_SCREEN_ASSIGNMENTS_KEY) || "{}");
+    const output = {};
+    for (const target of LOCAL_WINDOW_TARGETS) {
+      const assignment = parsed?.[target.key];
+      if (typeof assignment === "string") output[target.key] = { id: assignment };
+      else if (assignment?.id) {
+        output[target.key] = {
+          id: String(assignment.id),
+          label: assignment.label ? String(assignment.label) : "Bildschirm",
+          left: Math.round(Number(assignment.left) || 0),
+          top: Math.round(Number(assignment.top) || 0),
+          width: Math.max(320, Math.round(Number(assignment.width) || 1280)),
+          height: Math.max(240, Math.round(Number(assignment.height) || 720)),
+          isPrimary: Boolean(assignment.isPrimary),
+        };
+      }
+    }
+    return output;
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveWindowScreenAssignments() {
+  localStorage.setItem(WINDOW_SCREEN_ASSIGNMENTS_KEY, JSON.stringify(localWindowScreenAssignments));
+}
+
+function assignedLocalScreen(targetKey) {
+  const assignment = localWindowScreenAssignments[targetKey];
+  if (!assignment?.id) return null;
+  return localScreens.find((screenInfo) => screenInfo.id === assignment.id) || assignment;
 }
 
 function controlClientLabel(client) {
@@ -2271,7 +2468,7 @@ function renderCurrentAttempt() {
 }
 
 function openPlateWindow() {
-  const plateWindow = window.open("/plates", "gewichtheben-plates", "width=1100,height=760");
+  const plateWindow = openCompetitionWindow("plates");
   if (!plateWindow) {
     showToast("Scheibenfenster wurde vom Browser blockiert. Bitte Pop-ups für diese App erlauben.");
     return;
@@ -2280,7 +2477,7 @@ function openPlateWindow() {
 }
 
 function openScoreboardWindow() {
-  const scoreboardWindow = window.open("/scoreboard", "gewichtheben-scoreboard", "width=1180,height=760");
+  const scoreboardWindow = openCompetitionWindow("scoreboard");
   if (!scoreboardWindow) {
     showToast("Ergebnisfenster wurde vom Browser blockiert. Bitte Pop-ups für diese App erlauben.");
     return;
@@ -2289,12 +2486,46 @@ function openScoreboardWindow() {
 }
 
 function openWaitingRoomDisplayWindow() {
-  const waitingRoomWindow = window.open("/pi", "gewichtheben-warteraum-anzeige", "width=1180,height=760");
+  const waitingRoomWindow = openCompetitionWindow("waitingRoom");
   if (!waitingRoomWindow) {
     showToast("Warteraum-Anzeige wurde vom Browser blockiert. Bitte Pop-ups erlauben.");
     return;
   }
   waitingRoomWindow.focus();
+}
+
+function openCompetitionWindow(targetKey) {
+  const target = localWindowTargetByKey(targetKey);
+  if (!target) return null;
+  const assignedScreen = assignedLocalScreen(target.key);
+  const popup = window.open(target.path, target.windowName, windowFeaturesForTarget(target, assignedScreen));
+  if (popup && assignedScreen) {
+    try {
+      popup.moveTo(assignedScreen.left, assignedScreen.top);
+      popup.resizeTo(
+        Math.min(target.width, assignedScreen.width),
+        Math.min(target.height, assignedScreen.height),
+      );
+    } catch (error) {
+      // Manche Browser lassen das Verschieben nur direkt beim Oeffnen zu.
+    }
+  }
+  return popup;
+}
+
+function localWindowTargetByKey(key) {
+  return LOCAL_WINDOW_TARGETS.find((target) => target.key === key) || null;
+}
+
+function windowFeaturesForTarget(target, assignedScreen) {
+  const width = assignedScreen ? Math.min(target.width, assignedScreen.width) : target.width;
+  const height = assignedScreen ? Math.min(target.height, assignedScreen.height) : target.height;
+  const parts = ["popup=yes", `width=${width}`, `height=${height}`];
+  if (assignedScreen) {
+    parts.push(`left=${assignedScreen.left}`, `top=${assignedScreen.top}`);
+    parts.push(`screenX=${assignedScreen.left}`, `screenY=${assignedScreen.top}`);
+  }
+  return parts.join(",");
 }
 
 function renderQueue() {
@@ -2698,6 +2929,7 @@ function athleteSetupWarning(athlete) {
 
 function getStandings(athletes = state.athletes) {
   return athletes
+    .filter((athlete) => !athlete.withdrawn)
     .map((athlete) => {
       const snatch = bestWeight(athlete, "snatch");
       const cleanJerk = bestWeight(athlete, "cleanJerk");
@@ -2741,11 +2973,12 @@ function getStandings(athletes = state.athletes) {
 }
 
 function getTeamStandings(athletes = state.athletes) {
-  const individualRows = getStandings(athletes);
+  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn);
+  const individualRows = getStandings(eligibleAthletes);
   const rowByAthlete = new Map(individualRows.map((row) => [row.athlete.id, row]));
   return getTeams()
     .map((team) => {
-      const members = athletes.filter((athlete) => athlete.teamId === team.id);
+      const members = eligibleAthletes.filter((athlete) => athlete.teamId === team.id);
       const validRows = members
         .map((athlete) => rowByAthlete.get(athlete.id))
         .filter((row) => row && row.total && Number.isFinite(row.score));
@@ -2861,7 +3094,8 @@ function iwfFallbackSort(a, b) {
 }
 
 function getIwfRankMaps(athletes = state.athletes) {
-  const results = (athletes || []).map(calculateIwfAthleteResult);
+  const eligibleAthletes = (athletes || []).filter((athlete) => !athlete.withdrawn);
+  const results = eligibleAthletes.map(calculateIwfAthleteResult);
   const byClass = new Map();
   for (const row of results) {
     const key = row.classificationKey;
@@ -2902,11 +3136,12 @@ function getIwfStandings(athletes = state.athletes) {
 }
 
 function calculateIwfTeamPoints(athletes = state.athletes) {
-  const ranks = getIwfRankMaps(athletes);
+  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn);
+  const ranks = getIwfRankMaps(eligibleAthletes);
   const rowByAthlete = new Map(ranks.results.map((row) => [row.athlete.id, row]));
   return getTeams()
     .map((team) => {
-      const members = athletes.filter((athlete) => athlete.teamId === team.id);
+      const members = eligibleAthletes.filter((athlete) => athlete.teamId === team.id);
       const athleteRows = members.map((athlete) => {
         const row = rowByAthlete.get(athlete.id) || calculateIwfAthleteResult(athlete);
         const snatchRank = ranks.snatch.get(athlete.id) || null;
@@ -3181,11 +3416,12 @@ function rebuildNextWeight(athlete, lift) {
 }
 
 function validateStartList() {
-  if (!state.athletes.length) return "Bitte zuerst mindestens einen Athleten erfassen.";
+  const presentAthletes = state.athletes.filter((athlete) => !athlete.withdrawn);
+  if (!presentAthletes.length) return "Bitte zuerst mindestens einen Athleten erfassen.";
   if (!getOrderedGroups().length) return "Bitte zuerst mindestens eine Gruppe anlegen.";
 
   const groupIds = new Set(state.groups.map((group) => group.id));
-  for (const athlete of state.athletes) {
+  for (const athlete of presentAthletes) {
     if (!athlete.name || !athlete.ageClass || !athlete.weightClass) return "Die Meldedaten sind noch unvollständig.";
     if (normalizeAgeClass(athlete.ageClass) === "masters" && !parseOptionalBirthYear(athlete.birthYear)) {
       return `Für ${athlete.name} fehlt der Jahrgang für den Masters-Altersfaktor.`;
@@ -3200,7 +3436,7 @@ function validateStartList() {
     if (!groupIds.has(getAthleteGroupId(athlete))) return `${athlete.name} ist keiner gültigen Gruppe zugeordnet.`;
   }
 
-  if (!getOrderedGroups().some((group) => athletesForGroup(group.id).length > 0)) {
+  if (!getOrderedGroups().some((group) => athletesForGroup(group.id).some((athlete) => !athlete.withdrawn))) {
     return "Mindestens eine Gruppe braucht Athleten.";
   }
 
@@ -3894,7 +4130,7 @@ function groupNameById(id) {
 
 function firstPendingGroupId() {
   const group = getOrderedGroups().find(
-    (item) => athletesForGroup(item.id).length > 0 && !item.completed,
+    (item) => athletesForGroup(item.id).some((athlete) => !athlete.withdrawn) && !item.completed,
   );
   return group?.id || null;
 }
@@ -3923,9 +4159,9 @@ function getActiveGroup() {
 
 function getDisplayAthletes() {
   if (state.meta.mode === "competition" || state.meta.mode === "groupComplete") {
-    return athletesForGroup(state.meta.activeGroupId);
+    return athletesForGroup(state.meta.activeGroupId).filter((athlete) => !athlete.withdrawn);
   }
-  return state.athletes;
+  return state.athletes.filter((athlete) => !athlete.withdrawn);
 }
 
 function getRefereeCount() {
@@ -4232,6 +4468,7 @@ function buildStartListsHtml() {
   const groupSections = getOrderedGroups()
     .map((group) => {
       const rows = athletesForGroup(group.id)
+        .filter((athlete) => !athlete.withdrawn)
         .map(
           (athlete, index) => `
             <tr>
@@ -4727,7 +4964,7 @@ function formatTeamScoringNames(row) {
 function buildGroupResultSections() {
   return getOrderedGroups()
     .map((group) => {
-      const groupAthletes = athletesForGroup(group.id);
+      const groupAthletes = athletesForGroup(group.id).filter((athlete) => !athlete.withdrawn);
       const standings = getStandings(groupAthletes);
       const showTechnique = shouldShowTechniqueColumn(groupAthletes);
       const showAgeFactor = shouldShowAgeFactorColumn(groupAthletes);
