@@ -74,7 +74,10 @@
 
         <div class="setup-shell">
           <aside class="setup-nav" aria-label="Setup-Menü">
-            <button type="button" class="setup-nav-button active" data-action="set-setup-view" data-view="competition" data-iwf-relevant="true">
+            <button type="button" class="setup-nav-button active" data-action="set-setup-view" data-view="guided" data-iwf-relevant="true">
+              Begleitete Einrichtung
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="competition" data-iwf-relevant="true">
               Wettkampf & Gruppen
             </button>
             <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="athletes" data-iwf-relevant="true">
@@ -107,7 +110,11 @@
           </aside>
 
           <div class="setup-content">
-            <section class="setup-view active" data-setup-view="competition">
+            <section class="setup-view active" data-setup-view="guided">
+              <section id="guided-setup-panel" class="guided-setup-card" aria-live="polite"></section>
+            </section>
+
+            <section class="setup-view" data-setup-view="competition">
         <form id="event-form" class="event-grid" autocomplete="off">
           <label>
             <span>Wettkampf</span>

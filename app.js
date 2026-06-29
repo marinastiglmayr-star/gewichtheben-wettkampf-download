@@ -133,8 +133,8 @@ const IWF_MINIMUM_ATTEMPT_WEIGHT = {
   male: 26,
 };
 const IWF_PLACEMENT_POINTS = [0, 28, 25, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-const CLUB_SETUP_VIEWS = ["competition", "athletes", "teams", "network", "youtube", "relative", "ageFactor", "categories", "plates", "support"];
-const IWF_SETUP_VIEWS = ["competition", "athletes", "teams", "network", "youtube", "plates", "support"];
+const CLUB_SETUP_VIEWS = ["guided", "competition", "athletes", "teams", "network", "youtube", "relative", "ageFactor", "categories", "plates", "support"];
+const IWF_SETUP_VIEWS = ["guided", "competition", "athletes", "teams", "network", "youtube", "plates", "support"];
 const IWF_REPORT_LOGO = `
   <svg viewBox="0 0 260 320" role="img" aria-label="IWF" class="report-logo-svg">
     <rect width="260" height="320" rx="28" fill="#050b14"/>
@@ -199,7 +199,8 @@ let techniqueDraft = { key: null, points: [null, null, null] };
 let plannedNextDraft = { key: null, weight: null };
 let relativeTableGender = "male";
 let ageFactorGender = "male";
-let activeSetupView = "competition";
+let activeSetupView = "guided";
+let guidedSetupStepIndex = 0;
 let toastTimer = null;
 let serverMode = false;
 let sessionInfo = null;
@@ -305,6 +306,7 @@ function cacheElements() {
     setupPanel: $("#setup-panel"),
     competitionPanel: $("#competition-panel"),
     connectionPanel: $("#connection-panel"),
+    guidedSetupPanel: $("#guided-setup-panel"),
     eventSummary: $("#event-summary"),
     eventForm: $("#event-form"),
     eventName: $("#event-name"),
@@ -622,6 +624,11 @@ function handleClick(event) {
   if (action === "delete-team") deleteTeam(id);
   if (action === "move-group") moveGroup(id, button.dataset.direction);
   if (action === "set-setup-view") setSetupView(button.dataset.view);
+  if (action === "guided-next") guidedSetupNext();
+  if (action === "guided-cancel") guidedSetupCancel();
+  if (action === "guided-open-view") guidedSetupOpenView(button.dataset.view);
+  if (action === "guided-set-mode") guidedSetupSetMode(button.dataset.mode);
+  if (action === "guided-start-competition") startCompetition();
   if (action === "cancel-edit") clearAthleteForm();
   if (action === "close-weigh-in") closeWeighInDialog();
   if (action === "weigh-prev") moveWeighInSelection(-1);
@@ -1755,6 +1762,7 @@ function getAllowedSetupViews() {
 }
 
 function renderSetupViewContent() {
+  if (activeSetupView === "guided") renderGuidedSetup();
   if (activeSetupView === "athletes") {
     renderGroupSelect();
     renderTeamSelect();
@@ -1769,6 +1777,351 @@ function renderSetupViewContent() {
   if (activeSetupView === "plates") renderPlateSettings();
   if (activeSetupView === "teams") renderTeams();
   if (activeSetupView === "youtube") renderYouTubeSettings();
+}
+
+function renderGuidedSetup() {
+  if (!els.guidedSetupPanel) return;
+  const steps = getGuidedSetupSteps();
+  if (!steps.length) return;
+  guidedSetupStepIndex = Math.min(Math.max(guidedSetupStepIndex, 0), steps.length - 1);
+  const step = steps[guidedSetupStepIndex];
+  const isLast = guidedSetupStepIndex === steps.length - 1;
+  const startWarning = isLast ? validateStartList() : "";
+  const progress = Math.round(((guidedSetupStepIndex + 1) / steps.length) * 100);
+  const modeChooser =
+    step.id === "mode"
+      ? `
+        <div class="guided-mode-grid" role="group" aria-label="Regelmodus">
+          <button type="button" class="guided-mode-button ${!isIwfMode() ? "active" : ""}" data-action="guided-set-mode" data-mode="${SCORING_MODES.CLUB}">
+            <strong>Vereinsmodus</strong>
+            <span>Relativabzug, Altersfaktor, Technik und Mannschaftswertung nach Vereinslogik.</span>
+          </button>
+          <button type="button" class="guided-mode-button ${isIwfMode() ? "active" : ""}" data-action="guided-set-mode" data-mode="${SCORING_MODES.IWF}">
+            <strong>IWF Modus</strong>
+            <span>Internationale Wertung mit Total, Gewichtsklassen und 3 Kampfrichtern.</span>
+          </button>
+        </div>
+      `
+      : "";
+  const openButton = step.view
+    ? `<button type="button" class="ghost-button" data-action="guided-open-view" data-view="${escapeHtml(step.view)}">Passenden Reiter oeffnen</button>`
+    : "";
+
+  els.guidedSetupPanel.innerHTML = `
+    <div class="guided-setup-window">
+      <div class="guided-progress-row">
+        <span class="eyebrow">Begleitete Einrichtung</span>
+        <span class="status-pill">${guidedSetupStepIndex + 1} / ${steps.length}</span>
+      </div>
+      <div class="guided-progress-bar" aria-hidden="true">
+        <span style="width:${progress}%"></span>
+      </div>
+      <div class="guided-step-layout">
+        <aside class="guided-step-list" aria-label="Einrichtungsschritte">
+          ${steps
+            .map(
+              (item, index) => `
+                <div class="guided-step-pill ${index === guidedSetupStepIndex ? "active" : ""} ${index < guidedSetupStepIndex ? "done" : ""}">
+                  <span>${index + 1}</span>
+                  <strong>${escapeHtml(item.shortTitle || item.title)}</strong>
+                </div>
+              `,
+            )
+            .join("")}
+        </aside>
+        <section class="guided-step-card">
+          <p class="eyebrow">${escapeHtml(step.eyebrow || "Naechster Schritt")}</p>
+          <h3>${escapeHtml(step.title)}</h3>
+          <div class="guided-hint">
+            <strong>Hinweis</strong>
+            <p>${escapeHtml(step.hint)}</p>
+          </div>
+          ${modeChooser}
+          <div class="guided-checklist">
+            ${step.checks
+              .map(
+                (check) => `
+                  <div class="guided-check ${check.status || "open"}">
+                    <span aria-hidden="true"></span>
+                    <div>
+                      <strong>${escapeHtml(check.label)}</strong>
+                      <p>${escapeHtml(check.detail || "")}</p>
+                    </div>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+          ${isLast && startWarning ? `<p class="warning-text">${escapeHtml(startWarning)}</p>` : ""}
+          <div class="guided-actions">
+            <button type="button" class="ghost-button" data-action="guided-cancel">Abbrechen</button>
+            ${openButton}
+            ${
+              isLast
+                ? `<button type="button" class="primary-button" data-action="guided-start-competition" ${startWarning ? "disabled" : ""}>Wettkampf starten</button>`
+                : `<button type="button" class="primary-button" data-action="guided-next">Weiter</button>`
+            }
+          </div>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
+function getGuidedSetupSteps() {
+  const clubMode = !isIwfMode();
+  return [
+    guidedModeStep(),
+    guidedCompetitionStep(),
+    guidedCategoriesStep(),
+    guidedPlatesStep(),
+    clubMode ? guidedRelativeStep() : null,
+    clubMode ? guidedAgeFactorStep() : null,
+    guidedAthleteDataStep(),
+    guidedWeighInStep(),
+    guidedTeamsStep(),
+    guidedNetworkStep(),
+    guidedLivestreamStep(),
+    guidedStartStep(),
+  ].filter(Boolean);
+}
+
+function guidedModeStep() {
+  return {
+    id: "mode",
+    title: "Regelmodus festlegen",
+    shortTitle: "Modus",
+    hint: "Waehle zuerst, ob dieser Wettkampf mit der Vereinswertung oder nach IWF Regeln laufen soll. Diese Auswahl steuert danach die benoetigten Reiter und Pruefungen.",
+    checks: [
+      guidedCheck("Aktueller Modus", "ok", isIwfMode() ? "IWF Regeln aktiv. Es werden 3 Kampfrichter verwendet." : "Vereinsmodus aktiv. Relativwertung und Technik koennen genutzt werden."),
+      guidedCheck("Wechsel nur vor Wettkampfbeginn", state.meta.mode === "setup" ? "ok" : "warn", "Nach dem Start bleibt der Regelmodus fest, damit Ergebnisse eindeutig bleiben."),
+    ],
+  };
+}
+
+function guidedCompetitionStep() {
+  const groups = getOrderedGroups();
+  return {
+    id: "competition",
+    view: "competition",
+    title: "Wettkampf und Gruppen pruefen",
+    shortTitle: "Gruppen",
+    hint: "Trage den Wettkampfnamen, die Wettkampfklasse und die Plattform ein. Lege dann alle Gruppen in der Reihenfolge an, in der sie auf der Plattform starten.",
+    checks: [
+      guidedCheck("Wettkampfname", state.meta.eventName ? "ok" : "open", state.meta.eventName || "Noch keinen Wettkampfnamen eingetragen."),
+      guidedCheck("Wettkampfklasse", state.meta.category ? "ok" : "open", state.meta.category || "Zum Beispiel Masters, Jugend oder eine konkrete Gewichtsklasse."),
+      guidedCheck("Plattform", state.meta.group ? "ok" : "open", state.meta.group || "Plattformnummer oder Plattformname eintragen."),
+      guidedCheck("Gruppen", groups.length ? "ok" : "open", groups.length ? `${groups.length} Gruppe(n) angelegt: ${groups.map((group) => group.name).join(", ")}` : "Mindestens eine Gruppe anlegen."),
+      guidedCheck("Kinder-Technik", isIwfMode() || state.meta.childTechniqueEnabled ? "ok" : "warn", isIwfMode() ? "Im IWF Modus deaktiviert." : "Nur aktivieren, wenn Kinder mit Technikwertung bewertet werden sollen."),
+    ],
+  };
+}
+
+function guidedCategoriesStep() {
+  const categories = getCategories();
+  const complete = categories.every((category) => category.label && Number(category.barWeight) > 0 && category.weightClassType);
+  return {
+    id: "categories",
+    view: "categories",
+    title: "Geschlechter und Kategorien kontrollieren",
+    shortTitle: "Kategorien",
+    hint: "Pruefe, ob alle auswaehlbaren Kategorien stimmen. Das Stangengewicht, Technikwertung, Gewichtsklassen und Verschluesse wirken spaeter direkt auf Waage, Scheibenanzeige und Ergebnis.",
+    checks: [
+      guidedCheck("Kategorien vorhanden", categories.length ? "ok" : "open", `${categories.length} Kategorie(n) angelegt.`),
+      guidedCheck("Stangengewichte", complete ? "ok" : "open", complete ? "Alle Kategorien haben Stange und Gewichtsklasse." : "Mindestens eine Kategorie ist unvollstaendig."),
+      guidedCheck("Technikwertung", isIwfMode() ? "ok" : "warn", isIwfMode() ? "Im IWF Modus wird Technik nicht gewertet." : "Bei Kindern gezielt pruefen, ob Technik aktiv sein soll."),
+      guidedCheck("Verschluesse", "warn", "Pruefe, ob pro Kategorie die Scheibenverschluesse korrekt beruecksichtigt werden."),
+    ],
+  };
+}
+
+function guidedPlatesStep() {
+  const plates = Array.isArray(state.plates) ? state.plates : [];
+  const complete = plates.length && plates.every((plate) => Number(plate.weight) > 0 && Number(plate.size) > 0 && String(plate.color || "").trim());
+  return {
+    id: "plates",
+    view: "plates",
+    title: "Gewichtscheiben pruefen",
+    shortTitle: "Scheiben",
+    hint: "Kontrolliere Scheibengewicht, Farbe und Groesse. Genau diese Liste wird fuer die Scheibensteckeranzeige verwendet.",
+    checks: [
+      guidedCheck("Scheibenbestand", plates.length ? "ok" : "open", `${plates.length} Scheibentyp(en) hinterlegt.`),
+      guidedCheck("Farbe und Groesse", complete ? "ok" : "open", complete ? "Alle Scheiben haben Gewicht, Farbe und Groesse." : "Mindestens eine Scheibe ist unvollstaendig."),
+      guidedCheck("Reihenfolge", "warn", "Schwere Scheiben sollten groesser sein als leichte Scheiben, damit die Anzeige realistisch wirkt."),
+    ],
+  };
+}
+
+function guidedRelativeStep() {
+  const keys = ["male", "female", "child"];
+  const complete = keys.every((key) => Array.isArray(state.relativeTables?.[key]) && state.relativeTables[key].length);
+  return {
+    id: "relative",
+    view: "relative",
+    title: "Relativabzug kontrollieren",
+    shortTitle: "Relativ",
+    hint: "Pruefe die Relativabzugstabellen fuer Mann, Frau und Kind. Diese Werte bestimmen die Vereinswertung und Ergebnisliste.",
+    checks: keys.map((key) =>
+      guidedCheck(relativeTableLabel(key), Array.isArray(state.relativeTables?.[key]) && state.relativeTables[key].length ? "ok" : "open", `${state.relativeTables?.[key]?.length || 0} Zeilen hinterlegt.`),
+    ).concat([guidedCheck("Berechnung", complete ? "ok" : "open", complete ? "Relativtabellen sind vorhanden." : "Eine Tabelle fehlt noch.")]),
+  };
+}
+
+function guidedAgeFactorStep() {
+  const maleRows = state.ageFactors?.male?.length || 0;
+  const femaleRows = state.ageFactors?.female?.length || 0;
+  return {
+    id: "ageFactor",
+    view: "ageFactor",
+    title: "Altersfaktor fuer Masters pruefen",
+    shortTitle: "Masters",
+    hint: "Kontrolliere die Altersfaktoren fuer Masters. Sie werden ueber Jahrgang, aktuelles Datum und Geschlecht in der Ergebniswertung verwendet.",
+    checks: [
+      guidedCheck("Mann", maleRows ? "ok" : "open", `${maleRows} Alterswerte hinterlegt.`),
+      guidedCheck("Frau", femaleRows ? "ok" : "open", `${femaleRows} Alterswerte hinterlegt.`),
+      guidedCheck("Jahrgaenge", "warn", "Bei Masters-Athleten muss der Jahrgang eingetragen sein."),
+    ],
+  };
+}
+
+function guidedAthleteDataStep() {
+  const athletes = state.athletes || [];
+  const complete = athletes.every((athlete) => athlete.name && athlete.groupId && athlete.gender && athlete.ageClass && athlete.weightClass);
+  return {
+    id: "athletes",
+    view: "athletes",
+    title: "Meldedaten erfassen",
+    shortTitle: "Meldung",
+    hint: "Erfasse alle gemeldeten Athleten mit Name, Verein, Mannschaft, Gruppe, Kategorie, Altersklasse, Jahrgang und gemeldeter Gewichtsklasse. Waagedaten koennen spaeter ergaenzt werden.",
+    checks: [
+      guidedCheck("Athleten angelegt", athletes.length ? "ok" : "open", athletes.length ? `${athletes.length} Athlet(en) angelegt.` : "Noch keine Athleten angelegt."),
+      guidedCheck("Meldedaten vollstaendig", athletes.length && complete ? "ok" : "open", athletes.length && complete ? "Alle Meldedaten sind ausgefuellt." : "Mindestens ein Athlet hat noch fehlende Meldedaten."),
+      guidedCheck("Gruppenzuordnung", athletes.every((athlete) => getAthleteGroupId(athlete)) ? "ok" : "open", "Jeder Athlet muss einer Gruppe zugeordnet sein."),
+    ],
+  };
+}
+
+function guidedWeighInStep() {
+  const athletes = state.athletes || [];
+  const complete = athletes.length && athletes.every((athlete) => athlete.bodyweight && athlete.openers?.snatch && athlete.openers?.cleanJerk);
+  const partial = athletes.filter((athlete) => athlete.bodyweight || athlete.openers?.snatch || athlete.openers?.cleanJerk).length;
+  return {
+    id: "weighIn",
+    view: "athletes",
+    title: "Waage und Anfangsgewichte eintragen",
+    shortTitle: "Waage",
+    hint: "Oeffne die Waage und trage Koerpergewicht, Startgewicht Reissen und Startgewicht Stossen ein. Spaetere Gruppen koennen auch waehrend des Wettkampfs weiter gewogen werden.",
+    checks: [
+      guidedCheck("Waagedaten vollstaendig", complete ? "ok" : "open", complete ? "Alle Athleten haben Waagedaten." : `${partial} von ${athletes.length} Athlet(en) haben mindestens einen Waagewert.`),
+      guidedCheck("Startgewichte", complete ? "ok" : "open", "Reissen und Stossen muessen vor dem Start fuer alle anwesenden Athleten gefuellt sein."),
+      guidedCheck("Fehlende Athleten", "warn", "Nicht erschienene Athleten koennen an der Waage als fehlend markiert werden, solange ihre Gruppe noch nicht aktiv ist."),
+    ],
+  };
+}
+
+function guidedTeamsStep() {
+  const teams = state.teams || [];
+  const assigned = state.athletes.filter((athlete) => athlete.teamId).length;
+  return {
+    id: "teams",
+    view: "teams",
+    title: "Mannschaften pruefen",
+    shortTitle: "Teams",
+    hint: "Falls eine Mannschaftswertung benoetigt wird, lege Mannschaften an und ordne Athleten zu. Wenn keine Mannschaftswertung gebraucht wird, kann dieser Schritt nur kontrolliert werden.",
+    checks: [
+      guidedCheck("Mannschaften", teams.length ? "ok" : "warn", teams.length ? `${teams.length} Mannschaft(en) angelegt.` : "Keine Mannschaft angelegt. Das ist in Ordnung, wenn keine Mannschaftswertung benoetigt wird."),
+      guidedCheck("Zuordnung", assigned ? "ok" : "warn", assigned ? `${assigned} Athlet(en) einer Mannschaft zugeordnet.` : "Keine Athleten einer Mannschaft zugeordnet."),
+    ],
+  };
+}
+
+function guidedNetworkStep() {
+  const judges = sessionInfo?.judges || state.meta.judgeConnections || {};
+  const slots = getRefereeSlots();
+  const connectedJudges = slots.filter((slot) => judges[slot.key]).length;
+  const displayClients = Array.isArray(sessionInfo?.displayClients) ? sessionInfo.displayClients.length : 0;
+  return {
+    id: "network",
+    view: "network",
+    title: "Netzwerk und Anzeigen verbinden",
+    shortTitle: "Netzwerk",
+    hint: "Pruefe Verbindungscode, Kampfrichter-Handys, Waage, Warteraum und die Bildschirmzuordnung fuer Scheibenstecker-, Protokoll- und Warteraumanzeige.",
+    checks: [
+      guidedCheck("Verbindungscode", sessionInfo?.code ? "ok" : "open", sessionInfo?.code ? `Aktueller Code: ${sessionInfo.code}` : "Servercode noch nicht geladen."),
+      guidedCheck("Kampfrichter", connectedJudges === slots.length ? "ok" : "warn", `${connectedJudges} von ${slots.length} Kampfrichter(n) verbunden.`),
+      guidedCheck("Waage und Warteraum", "warn", "Bei Bedarf Waage und Warteraum ueber den Link im gleichen WLAN anmelden."),
+      guidedCheck("Bildschirme", displayClients ? "ok" : "warn", displayClients ? `${displayClients} Anzeigeclient(s) verbunden.` : "Scheibenstecker-/Warteraum-/Protokollfenster vor Ort pruefen."),
+    ],
+  };
+}
+
+function guidedLivestreamStep() {
+  const youtube = youtubePayload();
+  const enabled = Boolean(youtube.settings?.enabled);
+  return {
+    id: "youtube",
+    view: "youtube",
+    title: "Livestream einstellen",
+    shortTitle: "Stream",
+    hint: "Wenn gestreamt werden soll: YouTube verbinden, FFmpeg pruefen, Kamera und Mikrofon waehlen und die Kameravorschau kontrollieren. Wenn kein Stream benoetigt wird, Livestream deaktiviert lassen.",
+    checks: [
+      guidedCheck("Livestream aktiviert", enabled ? "ok" : "warn", enabled ? "Livestream startet beim Wettkampfstart automatisch." : "Livestream ist deaktiviert und wird uebersprungen."),
+      guidedCheck("YouTube Verbindung", !enabled || youtube.connected ? "ok" : "open", youtube.connected ? "YouTube ist verbunden." : "Mit YouTube verbinden, wenn gestreamt werden soll."),
+      guidedCheck("FFmpeg", !enabled || youtube.ffmpegFound ? "ok" : "open", youtube.ffmpegFound ? "FFmpeg wurde gefunden." : "FFmpeg automatisch einrichten oder Pfad eintragen."),
+      guidedCheck("Kamera/Mikrofon", !enabled || youtube.settings?.cameraDeviceId ? "ok" : "warn", youtube.settings?.cameraLabel || "Kamera und Mikrofon im Reiter Livestream pruefen."),
+      guidedCheck("YouTube Live", youtube.status === "error" ? "warn" : "ok", youtube.error || "Kein aktueller YouTube-Fehler gemeldet."),
+    ],
+  };
+}
+
+function guidedStartStep() {
+  const startWarning = validateStartList();
+  return {
+    id: "start",
+    view: "athletes",
+    title: "Letzte Pruefung und Wettkampfstart",
+    shortTitle: "Start",
+    hint: "Pruefe Meldeliste, Starterlisten, Waagewerte, Kampfrichter und Anzeigen ein letztes Mal. Wenn keine Warnung mehr angezeigt wird, kann der Wettkampf gestartet werden.",
+    checks: [
+      guidedCheck("Startliste", startWarning ? "open" : "ok", startWarning || "Alle Pflichtdaten sind vorhanden."),
+      guidedCheck("Listen", "warn", "Meldeliste und Starterlisten koennen oben in der Menueleiste erzeugt und ausgedruckt werden."),
+      guidedCheck("Sicherungen", "ok", "Nach jedem Versuch wird automatisch gesichert."),
+    ],
+  };
+}
+
+function guidedCheck(label, status, detail) {
+  return { label, status: status || "open", detail };
+}
+
+function relativeTableLabel(key) {
+  if (key === "female") return "Frau";
+  if (key === "child") return "Kind";
+  return "Mann";
+}
+
+function guidedSetupNext() {
+  const steps = getGuidedSetupSteps();
+  guidedSetupStepIndex = Math.min(guidedSetupStepIndex + 1, Math.max(steps.length - 1, 0));
+  renderGuidedSetup();
+}
+
+function guidedSetupCancel() {
+  guidedSetupStepIndex = 0;
+  setSetupView("competition");
+}
+
+function guidedSetupOpenView(view) {
+  const allowed = getAllowedSetupViews();
+  if (!allowed.includes(view)) return;
+  setSetupView(view);
+}
+
+function guidedSetupSetMode(mode) {
+  setScoringMode(mode);
+  guidedSetupStepIndex = 0;
+  activeSetupView = "guided";
+  render();
 }
 
 function youtubePayload() {
