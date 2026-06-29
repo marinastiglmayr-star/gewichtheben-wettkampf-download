@@ -215,6 +215,10 @@ let localScreenDetectionMessage = "";
 let youtubeDevices = { cameras: [], microphones: [] };
 let youtubePreviewStream = null;
 let youtubeMediaStream = null;
+let youtubeSourceMediaStream = null;
+let youtubeOverlayCanvasStream = null;
+let youtubeOverlayVideo = null;
+let youtubeOverlayFrameRequest = null;
 let youtubeRecorder = null;
 let youtubeUploadChain = Promise.resolve();
 let youtubeDevicePermissionRequested = false;
@@ -2050,12 +2054,15 @@ async function startYouTubeMediaCapture(settings = {}) {
   }
   stopYouTubePreview();
   stopYouTubeMediaCapture();
+  let sourceStream = null;
   try {
-    youtubeMediaStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings));
+    sourceStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings));
   } catch (error) {
-    youtubeMediaStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings, { videoOnly: true }));
+    sourceStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings, { videoOnly: true }));
     showToast("Mikrofon konnte nicht gestartet werden. Livestream laeuft ohne Ton.");
   }
+  youtubeSourceMediaStream = sourceStream;
+  youtubeMediaStream = await createYouTubeOverlayMediaStream(sourceStream);
   if (els.youtubePreview) els.youtubePreview.srcObject = youtubeMediaStream;
   const mimeType = youtubeRecorderMimeType();
   youtubeRecorder = new MediaRecorder(youtubeMediaStream, mimeType ? { mimeType } : undefined);
@@ -2070,6 +2077,247 @@ async function startYouTubeMediaCapture(settings = {}) {
   };
   youtubeRecorder.onerror = () => showToast("Livestream-Aufnahme meldet einen Fehler.");
   youtubeRecorder.start(1000);
+}
+
+async function createYouTubeOverlayMediaStream(sourceStream) {
+  const videoTrack = sourceStream?.getVideoTracks?.()[0];
+  if (!videoTrack || !document.createElement("canvas").captureStream) return sourceStream;
+
+  try {
+    youtubeOverlayVideo = document.createElement("video");
+    youtubeOverlayVideo.muted = true;
+    youtubeOverlayVideo.playsInline = true;
+    youtubeOverlayVideo.srcObject = sourceStream;
+    await youtubeOverlayVideo.play();
+    await waitForYouTubeVideoFrame(youtubeOverlayVideo);
+
+    const trackSettings = videoTrack.getSettings?.() || {};
+    const width = Math.max(320, Math.round(Number(trackSettings.width) || youtubeOverlayVideo.videoWidth || 1280));
+    const height = Math.max(180, Math.round(Number(trackSettings.height) || youtubeOverlayVideo.videoHeight || 720));
+    const frameRate = Math.min(30, Math.max(10, Math.round(Number(trackSettings.frameRate) || 30)));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) return sourceStream;
+
+    const drawFrame = () => {
+      drawYouTubeVideoFrame(context, youtubeOverlayVideo, width, height);
+      youtubeOverlayFrameRequest = window.requestAnimationFrame(drawFrame);
+    };
+    drawFrame();
+
+    youtubeOverlayCanvasStream = canvas.captureStream(frameRate);
+    const output = new MediaStream();
+    youtubeOverlayCanvasStream.getVideoTracks().forEach((track) => output.addTrack(track));
+    sourceStream.getAudioTracks().forEach((track) => output.addTrack(track));
+    return output;
+  } catch (error) {
+    console.warn(error);
+    stopYouTubeOverlayRenderer();
+    showToast("Livestream laeuft ohne eingeblendetes Infofeld.");
+    return sourceStream;
+  }
+}
+
+function waitForYouTubeVideoFrame(video) {
+  if (video.readyState >= 2 && video.videoWidth && video.videoHeight) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      video.removeEventListener("loadedmetadata", finish);
+      video.removeEventListener("canplay", finish);
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 1500);
+    video.addEventListener("loadedmetadata", finish, { once: true });
+    video.addEventListener("canplay", finish, { once: true });
+  });
+}
+
+function drawYouTubeVideoFrame(context, video, width, height) {
+  context.fillStyle = "#050b12";
+  context.fillRect(0, 0, width, height);
+  if (video?.readyState >= 2) {
+    context.drawImage(video, 0, 0, width, height);
+  }
+  drawYouTubeStreamOverlay(context, width, height, getYouTubeStreamOverlayData());
+}
+
+function getYouTubeStreamOverlayData() {
+  if (state.meta.mode === "groupComplete" || state.meta.breakPending) return getYouTubePauseOverlayData();
+  if (state.meta.mode === "finished") {
+    return {
+      type: "pause",
+      eyebrow: "Wettkampf",
+      title: "Beendet",
+      subtitle: "Ergebnisse werden erstellt.",
+    };
+  }
+  if (state.meta.mode !== "competition") return null;
+
+  const current = getCurrentAttempt();
+  if (!current) {
+    return {
+      type: "pause",
+      eyebrow: "Wettkampf",
+      title: "Pause",
+      subtitle: "Keine offenen Versuche.",
+    };
+  }
+
+  const key = attemptKey(current);
+  const liveVotes = state.meta.liveVotes?.key === key ? state.meta.liveVotes.votes || [] : [];
+  const activeVotes = getRefereeSlots().map((slot) => (slot.voteIndex in liveVotes ? liveVotes[slot.voteIndex] : null));
+  const whiteVotes = activeVotes.filter(Boolean).length;
+  const redVotes = activeVotes.filter((vote) => vote === false).length;
+  const openVotes = activeVotes.filter((vote) => vote === null).length;
+  const decision =
+    openVotes > 0
+      ? `${whiteVotes} wei\u00df \u00b7 ${redVotes} rot \u00b7 ${openVotes} offen`
+      : whiteVotes >= getRequiredGoodVotes()
+        ? `${whiteVotes} wei\u00df \u00b7 ${redVotes} rot \u00b7 g\u00fcltig`
+        : `${whiteVotes} wei\u00df \u00b7 ${redVotes} rot \u00b7 ung\u00fcltig`;
+
+  return {
+    type: "attempt",
+    eyebrow: "Aktueller Versuch",
+    athlete: current.athlete.name || "-",
+    detail: `${youtubeLiftLabel(current.lift)} \u00b7 Versuch ${current.attemptNo} \u00b7 Gruppe ${groupNameById(current.athlete.groupId)}`,
+    weight: `${formatScore(current.weight)} kg`,
+    result: `KR: ${decision}`,
+  };
+}
+
+function getYouTubePauseOverlayData() {
+  const activeGroup = getActiveGroup();
+  const nextGroupId = firstPendingGroupId();
+  const nextGroupName = nextGroupId ? groupNameById(nextGroupId) : "";
+  let subtitle = "Jetzt wird pausiert.";
+  if (state.meta.breakPending || state.meta.activeLift === "snatch") {
+    subtitle = activeGroup ? `Gruppe ${activeGroup.name}: Pause vor dem Sto\u00dfen.` : "Pause vor dem Sto\u00dfen.";
+  } else if (nextGroupName) {
+    subtitle = `N\u00e4chste Gruppe: ${nextGroupName}.`;
+  }
+  return {
+    type: "pause",
+    eyebrow: "Pause",
+    title: "Jetzt Pause",
+    subtitle,
+  };
+}
+
+function youtubeLiftLabel(lift) {
+  return lift === "cleanJerk" ? "Sto\u00dfen" : "Rei\u00dfen";
+}
+
+function drawYouTubeStreamOverlay(context, width, height, data) {
+  if (!data) return;
+
+  const margin = Math.max(14, Math.round(width * 0.024));
+  const boxWidth = Math.min(Math.max(Math.round(width * 0.28), 260), 430);
+  const boxHeight = data.type === "attempt" ? Math.max(112, Math.round(height * 0.17)) : Math.max(82, Math.round(height * 0.12));
+  const x = width - boxWidth - margin;
+  const y = height - boxHeight - margin;
+  const padding = Math.max(12, Math.round(boxWidth * 0.045));
+
+  context.save();
+  drawCanvasRoundRect(context, x, y, boxWidth, boxHeight, 14);
+  context.fillStyle = "rgba(4, 16, 27, 0.76)";
+  context.fill();
+  context.strokeStyle = "rgba(255, 255, 255, 0.32)";
+  context.lineWidth = Math.max(1, Math.round(width / 1400));
+  context.stroke();
+
+  let textY = y + padding + 12;
+  context.textBaseline = "alphabetic";
+  context.fillStyle = "#83f3ff";
+  context.font = `800 ${Math.max(10, Math.round(boxWidth * 0.037))}px Arial, sans-serif`;
+  context.fillText(String(data.eyebrow || "").toUpperCase(), x + padding, textY);
+
+  if (data.type === "attempt") {
+    textY += Math.round(boxHeight * 0.27);
+    context.fillStyle = "#ffffff";
+    context.font = `900 ${Math.max(22, Math.round(boxWidth * 0.085))}px Arial, sans-serif`;
+    drawTruncatedCanvasText(context, data.athlete, x + padding, textY, boxWidth - padding * 2);
+
+    textY += Math.round(boxHeight * 0.24);
+    context.fillStyle = "#dce6ef";
+    context.font = `800 ${Math.max(13, Math.round(boxWidth * 0.045))}px Arial, sans-serif`;
+    drawTruncatedCanvasText(context, data.detail, x + padding, textY, boxWidth - padding * 2);
+
+    const weightY = y + boxHeight - padding - 10;
+    context.fillStyle = "#ffffff";
+    context.font = `900 ${Math.max(22, Math.round(boxWidth * 0.09))}px Arial, sans-serif`;
+    context.fillText(data.weight, x + padding, weightY);
+
+    context.fillStyle = "#c6d2dc";
+    context.font = `800 ${Math.max(10, Math.round(boxWidth * 0.034))}px Arial, sans-serif`;
+    context.textAlign = "right";
+    drawTruncatedCanvasText(context, data.result, x + boxWidth - padding, weightY, Math.round(boxWidth * 0.48), "right");
+  } else {
+    textY += Math.round(boxHeight * 0.38);
+    context.fillStyle = "#ffffff";
+    context.font = `900 ${Math.max(22, Math.round(boxWidth * 0.08))}px Arial, sans-serif`;
+    drawTruncatedCanvasText(context, data.title, x + padding, textY, boxWidth - padding * 2);
+
+    textY += Math.round(boxHeight * 0.24);
+    context.fillStyle = "#dce6ef";
+    context.font = `800 ${Math.max(12, Math.round(boxWidth * 0.04))}px Arial, sans-serif`;
+    drawTruncatedCanvasText(context, data.subtitle, x + padding, textY, boxWidth - padding * 2);
+  }
+  context.restore();
+}
+
+function drawCanvasRoundRect(context, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.lineTo(x + width - r, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + r);
+  context.lineTo(x + width, y + height - r);
+  context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  context.lineTo(x + r, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - r);
+  context.lineTo(x, y + r);
+  context.quadraticCurveTo(x, y, x + r, y);
+  context.closePath();
+}
+
+function drawTruncatedCanvasText(context, text, x, y, maxWidth, align = "left") {
+  const value = truncateCanvasText(context, String(text || ""), maxWidth);
+  const previousAlign = context.textAlign;
+  context.textAlign = align;
+  context.fillText(value, x, y);
+  context.textAlign = previousAlign;
+}
+
+function truncateCanvasText(context, text, maxWidth) {
+  if (context.measureText(text).width <= maxWidth) return text;
+  let output = text;
+  while (output.length > 3 && context.measureText(`${output}...`).width > maxWidth) {
+    output = output.slice(0, -1);
+  }
+  return `${output.trim()}...`;
+}
+
+function stopYouTubeOverlayRenderer() {
+  if (youtubeOverlayFrameRequest) {
+    window.cancelAnimationFrame(youtubeOverlayFrameRequest);
+    youtubeOverlayFrameRequest = null;
+  }
+  if (youtubeOverlayVideo) {
+    youtubeOverlayVideo.pause?.();
+    youtubeOverlayVideo.srcObject = null;
+    youtubeOverlayVideo = null;
+  }
+  if (youtubeOverlayCanvasStream) {
+    youtubeOverlayCanvasStream.getTracks().forEach((track) => track.stop());
+    youtubeOverlayCanvasStream = null;
+  }
 }
 
 function youtubeRecorderMimeType() {
@@ -2102,10 +2350,14 @@ function stopYouTubeMediaCapture() {
     }
   }
   youtubeRecorder = null;
-  if (youtubeMediaStream) {
-    youtubeMediaStream.getTracks().forEach((track) => track.stop());
-    youtubeMediaStream = null;
-  }
+  stopYouTubeOverlayRenderer();
+  const tracks = new Set();
+  [youtubeMediaStream, youtubeSourceMediaStream].forEach((stream) => {
+    stream?.getTracks?.().forEach((track) => tracks.add(track));
+  });
+  tracks.forEach((track) => track.stop());
+  youtubeMediaStream = null;
+  youtubeSourceMediaStream = null;
   if (els.youtubePreview) els.youtubePreview.srcObject = null;
   setYouTubePreviewState(false);
 }
