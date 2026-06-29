@@ -190,6 +190,17 @@ if (Test-Path $bundledNodeSource) {
   $nodePath = Find-SystemNode
 }
 
+$bundledFfmpegSource = Join-Path $sourceRoot "runtime\ffmpeg.exe"
+$bundledFfmpegTarget = Join-Path $installDir "runtime\ffmpeg.exe"
+if (Test-Path $bundledFfmpegSource) {
+  New-Item -ItemType Directory -Path (Join-Path $installDir "runtime") -Force | Out-Null
+  try {
+    Copy-Item -LiteralPath $bundledFfmpegSource -Destination $bundledFfmpegTarget -Force -ErrorAction Stop
+  } catch {
+    Write-Warning "FFmpeg konnte nicht ueberschrieben werden und die vorhandene Datei wird weiter benutzt. Details: $($_.Exception.Message)"
+  }
+}
+
 $statePath = Join-Path $installDir "competition-state.json"
 if (-not (Test-Path $statePath)) {
   @'

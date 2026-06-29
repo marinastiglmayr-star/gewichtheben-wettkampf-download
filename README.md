@@ -71,6 +71,18 @@ Wenn die Adresse am Handy nicht lädt:
 - In der Ergebnisliste werden Zweikampf, Relativabzug, Ergebnis nach Abzug sowie bei aktivierter Technikwertung Technikpunkte und Gesamtwertung getrennt angezeigt.
 - Die Spalte `Technik` erscheint nur, wenn Technikwertung im Setup aktiv ist und mindestens eine betroffene Kategorie im Menü `Geschlechter / Kategorien` Technikwertung erlaubt.
 
+## Livestream
+
+Im Reiter `Livestream` kann ein YouTube-Livestream vorbereitet werden. Die Verbindung zu YouTube läuft über Google OAuth; es wird kein YouTube-Passwort in der App gespeichert.
+
+Benötigt wird:
+
+- ein YouTube-Kanal, auf dem Livestreaming freigeschaltet ist
+- ein Google-OAuth-Client mit der Weiterleitungsadresse `http://127.0.0.1:8765/api/youtube/oauth-callback`
+- FFmpeg, entweder als `runtime\ffmpeg.exe` im Programmordner oder über den eingetragenen FFmpeg-Pfad
+
+Im Reiter werden Kamera und Mikrofon ausgewählt. Die Kamera kann direkt als Live-Vorschau geprüft werden. Wenn `Livestream bei Wettkampfstart beginnen` aktiv ist, erstellt die App beim Start des Wettkampfs automatisch eine YouTube-Liveübertragung und sendet Kamera und Mikrofon dorthin. Der Livestream endet beim Wettkampfende nicht automatisch; er wird erst über `Livestream beenden` geschlossen und bleibt dann bei YouTube als Video erhalten.
+
 ## Hilfe & Kontakt
 
 Ansprechpartnerin für die Software ist Marina Leonie Stiglmayr, STC Bavaria 20 Landshut e. V.

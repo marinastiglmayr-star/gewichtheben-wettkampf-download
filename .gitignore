@@ -1,6 +1,7 @@
 dist/
 backups/
 competition-state.json
+youtube-live-settings.json
 node-path.txt
 *.zip
 *.log

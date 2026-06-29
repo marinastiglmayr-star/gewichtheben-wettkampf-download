@@ -2,13 +2,16 @@
 
 const http = require("node:http");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const crypto = require("node:crypto");
+const { spawn, spawnSync } = require("node:child_process");
 
 const PORT = Number(process.env.PORT) || 8765;
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, "competition-state.json");
+const YOUTUBE_SETTINGS_FILE = path.join(ROOT, "youtube-live-settings.json");
 const BACKUP_DIR = path.join(ROOT, "backups");
 const LATEST_BACKUP_FILE = "latest.json";
 const MAX_BACKUPS = 200;
@@ -23,6 +26,10 @@ const DISPLAY_CLIENTS = new Map();
 const DISPLAY_CLIENT_TIMEOUT_MS = 15000;
 const MAX_WAITING_ROOM_CHANGES = 2;
 const DISPLAY_ROLES = new Set(["", "plates", "scoreboard", "waitingRoom"]);
+const YOUTUBE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
+const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube";
 
 const ROLE_LABELS = {
   solo: "Kampfrichter",
@@ -120,6 +127,9 @@ const tokens = new Map();
 
 let state = defaultState();
 let sessionCode = makeSessionCode();
+let youtubeConfig = defaultYoutubeConfig();
+let youtubeRuntime = defaultYoutubeRuntime();
+let youtubePendingOAuth = null;
 
 main().catch((error) => {
   console.error(error);
@@ -128,6 +138,7 @@ main().catch((error) => {
 
 async function main() {
   state = await loadState();
+  youtubeConfig = await loadYoutubeConfig();
   syncPhase();
   await persistState();
 
@@ -184,6 +195,41 @@ async function route(req, res) {
 
   if (url.pathname === "/api/backups/restore" && req.method === "POST") {
     await restoreBackup(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/status" && req.method === "GET") {
+    sendJson(res, 200, getYoutubePayload());
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/settings" && req.method === "POST") {
+    await updateYoutubeSettings(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/auth/start" && req.method === "POST") {
+    await startYoutubeAuth(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/oauth-callback" && req.method === "GET") {
+    await handleYoutubeOAuthCallback(url, res);
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/start" && req.method === "POST") {
+    await startYoutubeLivestream(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/media-chunk" && req.method === "POST") {
+    await receiveYoutubeMediaChunk(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/youtube/stop" && req.method === "POST") {
+    await stopYoutubeLivestream(req, res);
     return;
   }
 
@@ -706,14 +752,15 @@ async function updateWeighAthleteData(req, res) {
   }
   client.lastSeen = new Date().toISOString();
 
-  if (state.meta.mode !== "setup") {
-    sendJson(res, 409, { error: "Waagedaten koennen nur in der Vorbereitung geaendert werden." });
-    return;
-  }
-
   const athlete = state.athletes.find((item) => item.id === String(body.athleteId || ""));
   if (!athlete) {
     sendJson(res, 404, { error: "Athlet nicht gefunden." });
+    return;
+  }
+
+  const lockReason = weighDataLockReason(athlete);
+  if (lockReason) {
+    sendJson(res, 409, { error: lockReason });
     return;
   }
 
@@ -1397,6 +1444,643 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function sendHtml(res, status, html) {
+  res.writeHead(status, { "Content-Type": "text/html;charset=utf-8" });
+  res.end(html);
+}
+
+function defaultYoutubeConfig() {
+  return {
+    enabled: false,
+    clientId: "",
+    clientSecret: "",
+    refreshToken: "",
+    accessToken: "",
+    tokenExpiresAt: 0,
+    privacyStatus: "unlisted",
+    titleTemplate: "{event} - Livestream",
+    cameraDeviceId: "",
+    cameraLabel: "",
+    microphoneDeviceId: "",
+    microphoneLabel: "",
+    ffmpegPath: "",
+  };
+}
+
+function defaultYoutubeRuntime() {
+  return {
+    status: "idle",
+    error: "",
+    broadcastId: null,
+    streamId: null,
+    watchUrl: "",
+    ffmpeg: null,
+    stderr: "",
+    chunkCount: 0,
+    transitionStarted: false,
+    startedAt: null,
+  };
+}
+
+async function loadYoutubeConfig() {
+  try {
+    return normalizeYoutubeConfig(JSON.parse(await fs.readFile(YOUTUBE_SETTINGS_FILE, "utf8")));
+  } catch (error) {
+    return defaultYoutubeConfig();
+  }
+}
+
+async function persistYoutubeConfig() {
+  await fs.writeFile(YOUTUBE_SETTINGS_FILE, JSON.stringify(normalizeYoutubeConfig(youtubeConfig), null, 2), "utf8");
+}
+
+function normalizeYoutubeConfig(input = {}) {
+  const base = defaultYoutubeConfig();
+  const privacy = ["public", "unlisted", "private"].includes(input.privacyStatus)
+    ? input.privacyStatus
+    : base.privacyStatus;
+  return {
+    ...base,
+    enabled: Boolean(input.enabled),
+    clientId: String(input.clientId || "").trim(),
+    clientSecret: String(input.clientSecret || ""),
+    refreshToken: String(input.refreshToken || ""),
+    accessToken: String(input.accessToken || ""),
+    tokenExpiresAt: Number(input.tokenExpiresAt) || 0,
+    privacyStatus: privacy,
+    titleTemplate: String(input.titleTemplate || base.titleTemplate).trim() || base.titleTemplate,
+    cameraDeviceId: String(input.cameraDeviceId || ""),
+    cameraLabel: String(input.cameraLabel || ""),
+    microphoneDeviceId: String(input.microphoneDeviceId || ""),
+    microphoneLabel: String(input.microphoneLabel || ""),
+    ffmpegPath: String(input.ffmpegPath || "").trim(),
+  };
+}
+
+function getYoutubePayload() {
+  const ffmpegPath = resolveFfmpegPath();
+  return {
+    connected: Boolean(youtubeConfig.refreshToken),
+    status: youtubeRuntime.status,
+    error: youtubeRuntime.error || "",
+    watchUrl: youtubeRuntime.watchUrl || "",
+    ffmpegFound: Boolean(ffmpegPath),
+    ffmpegPath: ffmpegPath || "",
+    settings: {
+      enabled: Boolean(youtubeConfig.enabled),
+      clientId: youtubeConfig.clientId,
+      privacyStatus: youtubeConfig.privacyStatus,
+      titleTemplate: youtubeConfig.titleTemplate,
+      cameraDeviceId: youtubeConfig.cameraDeviceId,
+      cameraLabel: youtubeConfig.cameraLabel,
+      microphoneDeviceId: youtubeConfig.microphoneDeviceId,
+      microphoneLabel: youtubeConfig.microphoneLabel,
+      ffmpegPath: youtubeConfig.ffmpegPath,
+    },
+  };
+}
+
+async function updateYoutubeSettings(req, res) {
+  const body = await readJson(req);
+  const previousClientId = youtubeConfig.clientId;
+  const next = normalizeYoutubeConfig({
+    ...youtubeConfig,
+    enabled: body.enabled,
+    clientId: body.clientId,
+    clientSecret: body.clientSecret ? String(body.clientSecret) : youtubeConfig.clientSecret,
+    privacyStatus: body.privacyStatus,
+    titleTemplate: body.titleTemplate,
+    cameraDeviceId: body.cameraDeviceId,
+    cameraLabel: body.cameraLabel,
+    microphoneDeviceId: body.microphoneDeviceId,
+    microphoneLabel: body.microphoneLabel,
+    ffmpegPath: body.ffmpegPath,
+  });
+  if (previousClientId && previousClientId !== next.clientId) {
+    next.refreshToken = "";
+    next.accessToken = "";
+    next.tokenExpiresAt = 0;
+    youtubeRuntime.error = "YouTube Client-ID wurde geaendert. Bitte neu verbinden.";
+    youtubeRuntime.status = "idle";
+  }
+  youtubeConfig = next;
+  await persistYoutubeConfig();
+  broadcastSession();
+  sendJson(res, 200, { ok: true, youtube: getYoutubePayload() });
+}
+
+async function startYoutubeAuth(req, res) {
+  const body = await readJson(req);
+  if (body && Object.keys(body).length) {
+    youtubeConfig = normalizeYoutubeConfig({
+      ...youtubeConfig,
+      ...body,
+      clientSecret: body.clientSecret ? String(body.clientSecret) : youtubeConfig.clientSecret,
+    });
+    await persistYoutubeConfig();
+  }
+  if (!youtubeConfig.clientId) {
+    sendJson(res, 400, { error: "Bitte zuerst die Google OAuth Client-ID eintragen." });
+    return;
+  }
+
+  const verifier = base64Url(crypto.randomBytes(48));
+  const challenge = base64Url(crypto.createHash("sha256").update(verifier).digest());
+  const stateCode = base64Url(crypto.randomBytes(24));
+  youtubePendingOAuth = {
+    state: stateCode,
+    verifier,
+    createdAt: Date.now(),
+  };
+
+  const params = new URLSearchParams({
+    client_id: youtubeConfig.clientId,
+    redirect_uri: youtubeRedirectUri(),
+    response_type: "code",
+    scope: YOUTUBE_SCOPE,
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "true",
+    state: stateCode,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+  sendJson(res, 200, { authUrl: `${YOUTUBE_AUTH_URL}?${params.toString()}`, redirectUri: youtubeRedirectUri() });
+}
+
+async function handleYoutubeOAuthCallback(url, res) {
+  const error = url.searchParams.get("error");
+  if (error) {
+    sendHtml(res, 400, youtubeCallbackHtml("YouTube-Verbindung abgebrochen", escapeHtml(error), false));
+    return;
+  }
+
+  const stateCode = url.searchParams.get("state") || "";
+  const code = url.searchParams.get("code") || "";
+  if (!youtubePendingOAuth || youtubePendingOAuth.state !== stateCode || Date.now() - youtubePendingOAuth.createdAt > 10 * 60_000) {
+    sendHtml(res, 400, youtubeCallbackHtml("YouTube-Verbindung fehlgeschlagen", "Die Anmeldung ist abgelaufen. Bitte im Programm neu starten.", false));
+    return;
+  }
+
+  try {
+    const tokens = await exchangeYoutubeCode(code, youtubePendingOAuth.verifier);
+    youtubeConfig = normalizeYoutubeConfig({
+      ...youtubeConfig,
+      accessToken: tokens.access_token || "",
+      refreshToken: tokens.refresh_token || youtubeConfig.refreshToken,
+      tokenExpiresAt: Date.now() + (Number(tokens.expires_in) || 3600) * 1000,
+    });
+    youtubeRuntime.error = "";
+    youtubeRuntime.status = youtubeRuntime.status === "error" ? "idle" : youtubeRuntime.status;
+    youtubePendingOAuth = null;
+    await persistYoutubeConfig();
+    broadcastSession();
+    sendHtml(res, 200, youtubeCallbackHtml("YouTube verbunden", "Dieses Fenster kann geschlossen werden. Die Verbindung ist im Programm aktiv.", true));
+  } catch (authError) {
+    sendHtml(res, 500, youtubeCallbackHtml("YouTube-Verbindung fehlgeschlagen", escapeHtml(authError.message), false));
+  }
+}
+
+async function exchangeYoutubeCode(code, verifier) {
+  const params = new URLSearchParams({
+    client_id: youtubeConfig.clientId,
+    code,
+    code_verifier: verifier,
+    grant_type: "authorization_code",
+    redirect_uri: youtubeRedirectUri(),
+  });
+  if (youtubeConfig.clientSecret) params.set("client_secret", youtubeConfig.clientSecret);
+  const response = await fetch(YOUTUBE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error_description || payload.error || "OAuth-Token konnte nicht gelesen werden.");
+  return payload;
+}
+
+async function getYoutubeAccessToken() {
+  if (youtubeConfig.accessToken && youtubeConfig.tokenExpiresAt > Date.now() + 60_000) return youtubeConfig.accessToken;
+  if (!youtubeConfig.refreshToken) throw new Error("YouTube ist noch nicht verbunden.");
+
+  const params = new URLSearchParams({
+    client_id: youtubeConfig.clientId,
+    refresh_token: youtubeConfig.refreshToken,
+    grant_type: "refresh_token",
+  });
+  if (youtubeConfig.clientSecret) params.set("client_secret", youtubeConfig.clientSecret);
+  const response = await fetch(YOUTUBE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error_description || payload.error || "YouTube-Zugriff konnte nicht erneuert werden.");
+  youtubeConfig = normalizeYoutubeConfig({
+    ...youtubeConfig,
+    accessToken: payload.access_token || "",
+    tokenExpiresAt: Date.now() + (Number(payload.expires_in) || 3600) * 1000,
+  });
+  await persistYoutubeConfig();
+  return youtubeConfig.accessToken;
+}
+
+async function youtubeApi(method, endpoint, query = {}, body = null) {
+  const accessToken = await getYoutubeAccessToken();
+  const url = new URL(`${YOUTUBE_API_BASE}${endpoint}`);
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  }
+  const options = {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+  if (body !== null && body !== undefined) {
+    options.headers["Content-Type"] = "application/json;charset=utf-8";
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, options);
+  const text = await response.text();
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (error) {
+      payload = { raw: text };
+    }
+  }
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || payload?.raw || `YouTube API Fehler ${response.status}`);
+  }
+  return payload;
+}
+
+async function startYoutubeLivestream(req, res) {
+  const body = await readJson(req);
+  if (!youtubeConfig.enabled) {
+    sendJson(res, 200, { ok: true, skipped: true, youtube: getYoutubePayload() });
+    return;
+  }
+  if (youtubeRuntime.status === "starting" || youtubeRuntime.status === "live") {
+    sendJson(res, 200, { ok: true, alreadyLive: true, youtube: getYoutubePayload() });
+    return;
+  }
+  if (!youtubeConfig.refreshToken) {
+    youtubeRuntime.status = "error";
+    youtubeRuntime.error = "YouTube ist noch nicht verbunden.";
+    broadcastSession();
+    sendJson(res, 400, { error: youtubeRuntime.error, youtube: getYoutubePayload() });
+    return;
+  }
+
+  const ffmpegPath = resolveFfmpegPath();
+  if (!ffmpegPath) {
+    youtubeRuntime.status = "error";
+    youtubeRuntime.error = "FFmpeg wurde nicht gefunden. Bitte ffmpeg.exe hinterlegen oder den Pfad eintragen.";
+    broadcastSession();
+    sendJson(res, 400, { error: youtubeRuntime.error, youtube: getYoutubePayload() });
+    return;
+  }
+
+  try {
+    youtubeRuntime = defaultYoutubeRuntime();
+    youtubeRuntime.status = "starting";
+    youtubeRuntime.startedAt = new Date().toISOString();
+    broadcastSession();
+
+    const title = formatYoutubeTitle(body);
+    const broadcast = await youtubeApi(
+      "POST",
+      "/liveBroadcasts",
+      { part: "snippet,status,contentDetails" },
+      {
+        snippet: {
+          title,
+          description: `Livestream ${state.meta.eventName || "Gewichtheben"}`,
+          scheduledStartTime: new Date(Date.now() + 30_000).toISOString(),
+        },
+        status: {
+          privacyStatus: youtubeConfig.privacyStatus,
+          selfDeclaredMadeForKids: false,
+        },
+        contentDetails: {
+          enableAutoStart: true,
+          enableAutoStop: false,
+          monitorStream: { enableMonitorStream: false },
+        },
+      },
+    );
+
+    const stream = await youtubeApi(
+      "POST",
+      "/liveStreams",
+      { part: "snippet,cdn" },
+      {
+        snippet: { title: `${title} Signal` },
+        cdn: {
+          frameRate: "30fps",
+          ingestionType: "rtmp",
+          resolution: "720p",
+        },
+      },
+    );
+
+    await youtubeApi("POST", "/liveBroadcasts/bind", { part: "id,contentDetails", id: broadcast.id, streamId: stream.id });
+
+    const ingestion = stream?.cdn?.ingestionInfo || {};
+    const ingestionAddress = ingestion.rtmpsIngestionAddress || ingestion.ingestionAddress;
+    const streamName = ingestion.streamName;
+    if (!ingestionAddress || !streamName) throw new Error("YouTube hat keine Stream-Adresse geliefert.");
+
+    youtubeRuntime.broadcastId = broadcast.id;
+    youtubeRuntime.streamId = stream.id;
+    youtubeRuntime.watchUrl = `https://www.youtube.com/watch?v=${broadcast.id}`;
+    youtubeRuntime.ffmpeg = spawnYoutubeFfmpeg(ffmpegPath, `${String(ingestionAddress).replace(/\/$/, "")}/${streamName}`);
+    broadcastSession();
+    sendJson(res, 200, { ok: true, youtube: getYoutubePayload() });
+  } catch (error) {
+    shutdownYoutubeFfmpeg();
+    youtubeRuntime.status = "error";
+    youtubeRuntime.error = error.message || "Livestream konnte nicht gestartet werden.";
+    broadcastSession();
+    sendJson(res, 500, { error: youtubeRuntime.error, youtube: getYoutubePayload() });
+  }
+}
+
+async function receiveYoutubeMediaChunk(req, res) {
+  const chunk = await readBinary(req, 25_000_000);
+  if (!youtubeRuntime.ffmpeg || !youtubeRuntime.ffmpeg.stdin || youtubeRuntime.ffmpeg.stdin.destroyed) {
+    sendJson(res, 409, { error: "Livestream-Encoder ist nicht bereit." });
+    return;
+  }
+  try {
+    await writeFfmpegStdin(chunk);
+    youtubeRuntime.chunkCount += 1;
+    if (!youtubeRuntime.transitionStarted) {
+      youtubeRuntime.transitionStarted = true;
+      transitionYoutubeBroadcastWhenReady().catch((error) => {
+        youtubeRuntime.error = error.message;
+        broadcastSession();
+      });
+    }
+    sendJson(res, 200, { ok: true });
+  } catch (error) {
+    youtubeRuntime.status = "error";
+    youtubeRuntime.error = error.message || "Videodaten konnten nicht an FFmpeg gesendet werden.";
+    broadcastSession();
+    sendJson(res, 500, { error: youtubeRuntime.error });
+  }
+}
+
+async function stopYoutubeLivestream(req, res) {
+  await readJson(req).catch(() => ({}));
+  if (!["starting", "live", "stopping", "error"].includes(youtubeRuntime.status)) {
+    sendJson(res, 200, { ok: true, youtube: getYoutubePayload() });
+    return;
+  }
+
+  youtubeRuntime.status = "stopping";
+  broadcastSession();
+  let stopError = "";
+  try {
+    if (youtubeRuntime.broadcastId) {
+      await youtubeApi("POST", "/liveBroadcasts/transition", {
+        part: "status",
+        id: youtubeRuntime.broadcastId,
+        broadcastStatus: "complete",
+      });
+    }
+  } catch (error) {
+    stopError = error.message || "YouTube konnte nicht auf beendet gesetzt werden.";
+  }
+  shutdownYoutubeFfmpeg();
+  youtubeRuntime.status = stopError ? "error" : "complete";
+  youtubeRuntime.error = stopError;
+  broadcastSession();
+  sendJson(res, stopError ? 500 : 200, { ok: !stopError, error: stopError, youtube: getYoutubePayload() });
+}
+
+async function transitionYoutubeBroadcastWhenReady() {
+  if (!youtubeRuntime.broadcastId || !youtubeRuntime.streamId) return;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await delay(3000);
+    if (!["starting", "live"].includes(youtubeRuntime.status)) return;
+    const streamStatus = await youtubeApi("GET", "/liveStreams", { part: "status", id: youtubeRuntime.streamId });
+    const value = streamStatus?.items?.[0]?.status?.streamStatus || "";
+    if (value === "active") {
+      try {
+        await youtubeApi("POST", "/liveBroadcasts/transition", {
+          part: "status",
+          id: youtubeRuntime.broadcastId,
+          broadcastStatus: "live",
+        });
+      } catch (error) {
+        try {
+          await youtubeApi("POST", "/liveBroadcasts/transition", {
+            part: "status",
+            id: youtubeRuntime.broadcastId,
+            broadcastStatus: "testing",
+          });
+          await delay(2000);
+          await youtubeApi("POST", "/liveBroadcasts/transition", {
+            part: "status",
+            id: youtubeRuntime.broadcastId,
+            broadcastStatus: "live",
+          });
+        } catch (transitionError) {
+          youtubeRuntime.error = transitionError.message || error.message;
+          broadcastSession();
+          return;
+        }
+      }
+      youtubeRuntime.status = "live";
+      youtubeRuntime.error = "";
+      broadcastSession();
+      return;
+    }
+  }
+  youtubeRuntime.error = "YouTube meldet noch kein aktives Videosignal. Bitte Kamera, FFmpeg und Internetverbindung pruefen.";
+  broadcastSession();
+}
+
+function spawnYoutubeFfmpeg(ffmpegPath, targetUrl) {
+  const args = [
+    "-hide_banner",
+    "-loglevel",
+    "warning",
+    "-re",
+    "-f",
+    "webm",
+    "-i",
+    "pipe:0",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-tune",
+    "zerolatency",
+    "-pix_fmt",
+    "yuv420p",
+    "-r",
+    "30",
+    "-g",
+    "60",
+    "-b:v",
+    "2500k",
+    "-maxrate",
+    "2500k",
+    "-bufsize",
+    "5000k",
+    "-c:a",
+    "aac",
+    "-ar",
+    "44100",
+    "-b:a",
+    "128k",
+    "-f",
+    "flv",
+    targetUrl,
+  ];
+  const child = spawn(ffmpegPath, args, { stdio: ["pipe", "ignore", "pipe"], windowsHide: true });
+  child.stderr.on("data", (data) => {
+    youtubeRuntime.stderr = `${youtubeRuntime.stderr || ""}${data.toString("utf8")}`.slice(-6000);
+  });
+  child.on("exit", (code) => {
+    if (["starting", "live", "stopping"].includes(youtubeRuntime.status)) {
+      youtubeRuntime.status = code === 0 || youtubeRuntime.status === "stopping" ? youtubeRuntime.status : "error";
+      if (code !== 0 && youtubeRuntime.status === "error") {
+        youtubeRuntime.error = `FFmpeg wurde beendet (${code}). ${youtubeRuntime.stderr || ""}`.trim();
+      }
+      broadcastSession();
+    }
+  });
+  return child;
+}
+
+function shutdownYoutubeFfmpeg() {
+  const child = youtubeRuntime.ffmpeg;
+  youtubeRuntime.ffmpeg = null;
+  if (!child) return;
+  try {
+    if (child.stdin && !child.stdin.destroyed) child.stdin.end();
+  } catch (error) {
+    // best effort
+  }
+  setTimeout(() => {
+    try {
+      if (!child.killed) child.kill("SIGTERM");
+    } catch (error) {
+      // best effort
+    }
+  }, 1000);
+}
+
+function writeFfmpegStdin(chunk) {
+  return new Promise((resolve, reject) => {
+    const stdin = youtubeRuntime.ffmpeg?.stdin;
+    if (!stdin || stdin.destroyed) {
+      reject(new Error("FFmpeg ist nicht bereit."));
+      return;
+    }
+    const ok = stdin.write(chunk, (error) => {
+      if (error) reject(error);
+    });
+    if (ok) {
+      resolve();
+      return;
+    }
+    stdin.once("drain", resolve);
+    stdin.once("error", reject);
+  });
+}
+
+function resolveFfmpegPath() {
+  const candidates = [
+    youtubeConfig.ffmpegPath,
+    path.join(ROOT, "runtime", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+    path.join(ROOT, process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    if (fsSync.existsSync(candidate)) return candidate;
+  }
+  const command = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(command, ["ffmpeg"], { encoding: "utf8", windowsHide: true });
+  if (result.status === 0) {
+    const first = String(result.stdout || "").split(/\r?\n/).find(Boolean);
+    if (first && fsSync.existsSync(first.trim())) return first.trim();
+  }
+  return "";
+}
+
+function formatYoutubeTitle(body = {}) {
+  const template = youtubeConfig.titleTemplate || "{event} - Livestream";
+  const replacements = {
+    event: body.eventName || state.meta.eventName || "Gewichtheben",
+    category: body.category || state.meta.category || "",
+    platform: body.platform || state.meta.group || "",
+    date: new Date().toLocaleDateString("de-DE"),
+  };
+  return template.replace(/\{(event|category|platform|date)\}/g, (_, key) => replacements[key] || "").replace(/\s+/g, " ").trim();
+}
+
+function youtubeRedirectUri() {
+  return `http://127.0.0.1:${PORT}/api/youtube/oauth-callback`;
+}
+
+function youtubeCallbackHtml(title, message, closeWindow) {
+  return `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #eef3f5; color: #111820; }
+    main { max-width: 560px; padding: 30px; border: 1px solid #d5e0e6; border-radius: 12px; background: white; box-shadow: 0 20px 60px rgba(20, 40, 60, .12); }
+    h1 { margin: 0 0 12px; font-size: 28px; }
+    p { margin: 0; color: #5b6b78; font-size: 18px; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${message}</p>
+  </main>
+  ${closeWindow ? "<script>setTimeout(() => window.close(), 2500);</script>" : ""}
+</body>
+</html>`;
+}
+
+function base64Url(buffer) {
+  return Buffer.from(buffer).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readBinary(req, maxSize) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxSize) throw new Error("Request too large");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 async function loadState() {
   try {
     return normalizeState(JSON.parse(await fs.readFile(DATA_FILE, "utf8")));
@@ -1526,6 +2210,16 @@ function countStateAttempts(source) {
 
 function hasAnyRecordedAttempt(athlete) {
   return Boolean((athlete?.attempts?.snatch || []).length || (athlete?.attempts?.cleanJerk || []).length);
+}
+
+function weighDataLockReason(athlete) {
+  if (!athlete) return "Athlet nicht gefunden.";
+  if (athlete.withdrawn) return "Athlet ist als fehlend markiert.";
+  if (hasAnyRecordedAttempt(athlete)) return "Athlet hat bereits Versuche im Wettkampf.";
+  if (state.meta.mode !== "setup" && state.meta.activeGroupId && getAthleteGroupId(athlete) === state.meta.activeGroupId) {
+    return "Die aktuell laufende Gruppe ist an der Waage gesperrt.";
+  }
+  return "";
 }
 
 function groupNameById(id, source = state) {
@@ -2219,6 +2913,7 @@ function getSessionPayload(req) {
     tabletClients: sanitizeTabletClients(),
     displayClients: sanitizeDisplayClients(),
     displayAssignments: normalizeDisplayAssignments(state.meta.displayAssignments),
+    youtube: getYoutubePayload(),
   };
 }
 

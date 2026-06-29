@@ -94,8 +94,9 @@ async function saveWeighData(event) {
   event.preventDefault();
   if (!auth?.token || !els.athlete.value) return;
   const athlete = findAthlete(els.athlete.value);
-  if (!canEditWeighData(athlete)) {
-    setStatus("Waagedaten koennen nur in der Vorbereitung geaendert werden.");
+  const lockReason = weighDataLockReason(athlete);
+  if (lockReason) {
+    setStatus(lockReason);
     return;
   }
   const response = await fetch("/api/weigh/athlete-data", {
@@ -194,7 +195,7 @@ async function sendHeartbeat() {
 
 function render() {
   document.body.classList.toggle("iwf-mode", state?.meta?.scoringMode === "IWF");
-  els.modeNote.textContent = state?.meta?.mode === "setup" ? "Vorbereitung" : "Wettkampf laeuft";
+  els.modeNote.textContent = state?.meta?.mode === "setup" ? "Vorbereitung" : "Wettkampf laeuft - aktive Gruppe gesperrt";
   const isLoggedIn = Boolean(auth?.token);
   els.loginPanel.classList.toggle("hidden", isLoggedIn);
   els.weighPanel.classList.toggle("hidden", !isLoggedIn);
@@ -270,7 +271,8 @@ function moveSelection(direction) {
 
 function updateFormAvailability() {
   const athlete = findAthlete(els.athlete.value);
-  const dataDisabled = !canEditWeighData(athlete);
+  const lockReason = weighDataLockReason(athlete);
+  const dataDisabled = Boolean(lockReason);
   [els.bodyweight, els.snatch, els.cleanJerk].forEach((control) => {
     control.disabled = dataDisabled;
   });
@@ -283,13 +285,23 @@ function updateFormAvailability() {
   els.markMissing.disabled = !canToggleMissing(athlete);
   els.markMissing.textContent = athlete?.withdrawn ? "Fehlend zuruecknehmen" : "Als fehlend markieren";
   if (!athlete) setStatus("Kein Athlet ausgewaehlt.");
-  else if (dataDisabled && state?.meta?.mode !== "setup") setStatus("Waagedaten sind im laufenden Wettkampf gesperrt. Fehlend-Markierung bleibt fuer spaetere Gruppen moeglich.");
+  else if (dataDisabled) setStatus(lockReason);
   else if (athlete.withdrawn) setStatus("Athlet ist als fehlend markiert.");
   else setStatus("Bereit.");
 }
 
 function canEditWeighData(athlete) {
-  return Boolean(athlete) && !athlete.withdrawn && state?.meta?.mode === "setup";
+  return !weighDataLockReason(athlete);
+}
+
+function weighDataLockReason(athlete) {
+  if (!athlete) return "Kein Athlet ausgewaehlt.";
+  if (athlete.withdrawn) return "Athlet ist als fehlend markiert.";
+  if (hasAnyRecordedAttempt(athlete)) return "Athlet hat bereits Versuche im Wettkampf.";
+  if (state?.meta?.mode !== "setup" && state?.meta?.activeGroupId && getAthleteGroupId(athlete) === state.meta.activeGroupId) {
+    return "Die aktuell laufende Gruppe ist an der Waage gesperrt.";
+  }
+  return "";
 }
 
 function canToggleMissing(athlete) {

@@ -42,6 +42,9 @@
         <button type="button" class="ghost-button" data-action="open-backups" title="Automatische Sicherungen anzeigen">
           Sicherungen
         </button>
+        <button type="button" class="danger-button hidden" id="youtube-end-stream" data-action="end-youtube-stream" title="YouTube-Livestream beenden">
+          Livestream beenden
+        </button>
         <button type="button" class="danger-button" data-action="reset-all" title="Alles löschen">
           Löschen
         </button>
@@ -74,6 +77,9 @@
             </button>
             <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="network" data-iwf-relevant="true">
               Netzwerk
+            </button>
+            <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="youtube" data-iwf-relevant="true">
+              Livestream
             </button>
             <button type="button" class="setup-nav-button" data-action="set-setup-view" data-view="relative">
               Relativabzug
@@ -170,6 +176,76 @@
                 </label>
               </form>
               <section class="connection-panel hidden" id="connection-panel"></section>
+            </section>
+
+            <section class="setup-view" data-setup-view="youtube">
+              <section class="youtube-panel">
+                <div class="panel-head compact">
+                  <div>
+                    <p class="eyebrow">Livestream</p>
+                    <h3>YouTube-Livestream einrichten</h3>
+                  </div>
+                  <span id="youtube-status-pill" class="status-pill">nicht verbunden</span>
+                </div>
+                <form id="youtube-form" class="youtube-form" autocomplete="off">
+                  <label class="toggle-field">
+                    <span>Automatisch</span>
+                    <span class="toggle-row">
+                      <input id="youtube-enabled" type="checkbox" />
+                      Livestream bei Wettkampfstart beginnen
+                    </span>
+                  </label>
+                  <label>
+                    <span>Google OAuth Client-ID</span>
+                    <input id="youtube-client-id" type="text" placeholder="Client-ID aus Google Cloud" />
+                  </label>
+                  <label>
+                    <span>Client Secret</span>
+                    <input id="youtube-client-secret" type="password" placeholder="optional / falls vorhanden" />
+                  </label>
+                  <label>
+                    <span>Sichtbarkeit</span>
+                    <select id="youtube-privacy">
+                      <option value="unlisted">Nicht gelistet</option>
+                      <option value="public">Oeffentlich</option>
+                      <option value="private">Privat</option>
+                    </select>
+                  </label>
+                  <label class="wide">
+                    <span>Titel</span>
+                    <input id="youtube-title" type="text" placeholder="{event} - Livestream" />
+                  </label>
+                  <label class="wide">
+                    <span>FFmpeg-Pfad</span>
+                    <input id="youtube-ffmpeg-path" type="text" placeholder="leer lassen fuer automatische Suche" />
+                  </label>
+                  <label>
+                    <span>Kamera</span>
+                    <select id="youtube-camera"></select>
+                  </label>
+                  <label>
+                    <span>Mikrofon</span>
+                    <select id="youtube-microphone"></select>
+                  </label>
+                  <div class="youtube-actions">
+                    <button type="button" class="ghost-button" data-action="youtube-save-settings">Speichern</button>
+                    <button type="button" class="primary-button" data-action="youtube-connect">Mit YouTube verbinden</button>
+                    <button type="button" class="ghost-button" data-action="youtube-refresh-devices">Geraete aktualisieren</button>
+                    <button type="button" class="ghost-button" data-action="youtube-preview">Kamera testen</button>
+                  </div>
+                </form>
+                <div class="youtube-preview-grid">
+                  <div class="youtube-preview-box">
+                    <video id="youtube-preview" autoplay muted playsinline></video>
+                  </div>
+                  <div class="youtube-status-box">
+                    <p class="eyebrow">Status</p>
+                    <h4 id="youtube-status-title">Nicht verbunden</h4>
+                    <p id="youtube-status-text" class="muted">OAuth-Verbindung und Geraete auswaehlen.</p>
+                    <p id="youtube-watch-url" class="connection-url"></p>
+                  </div>
+                </div>
+              </section>
             </section>
 
             <section class="setup-view" data-setup-view="athletes">

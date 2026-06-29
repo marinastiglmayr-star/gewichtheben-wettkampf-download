@@ -97,6 +97,23 @@ if ($nodeSource) {
   Write-Warning "Node.js wurde nicht gefunden. Das Paket benoetigt dann Node.js auf dem Zielrechner."
 }
 
+$ffmpegCommand = Get-Command ffmpeg -ErrorAction SilentlyContinue
+$ffmpegCandidates = @()
+$ffmpegCandidates += Join-Path $root "runtime\ffmpeg.exe"
+$ffmpegCandidates += Join-Path $env:LOCALAPPDATA "GewichthebenWettkampf\runtime\ffmpeg.exe"
+if ($ffmpegCommand) {
+  $ffmpegCandidates += $ffmpegCommand.Source
+}
+
+$ffmpegSource = $ffmpegCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if ($ffmpegSource) {
+  Copy-Item -LiteralPath $ffmpegSource -Destination (Join-Path $stage "runtime\ffmpeg.exe") -Force
+  Write-Host "FFmpeg fuer YouTube-Livestream gebuendelt:"
+  Write-Host $ffmpegSource
+} else {
+  Write-Warning "FFmpeg wurde nicht gefunden. YouTube Live benoetigt ffmpeg.exe im Programmordner oder einen eingetragenen Pfad."
+}
+
 if (Test-Path $zip) {
   Remove-Item -LiteralPath $zip -Force
 }

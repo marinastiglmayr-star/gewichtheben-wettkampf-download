@@ -133,8 +133,8 @@ const IWF_MINIMUM_ATTEMPT_WEIGHT = {
   male: 26,
 };
 const IWF_PLACEMENT_POINTS = [0, 28, 25, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-const CLUB_SETUP_VIEWS = ["competition", "athletes", "teams", "network", "relative", "ageFactor", "categories", "plates", "support"];
-const IWF_SETUP_VIEWS = ["competition", "athletes", "teams", "network", "plates", "support"];
+const CLUB_SETUP_VIEWS = ["competition", "athletes", "teams", "network", "youtube", "relative", "ageFactor", "categories", "plates", "support"];
+const IWF_SETUP_VIEWS = ["competition", "athletes", "teams", "network", "youtube", "plates", "support"];
 const IWF_REPORT_LOGO = `
   <svg viewBox="0 0 260 320" role="img" aria-label="IWF" class="report-logo-svg">
     <rect width="260" height="320" rx="28" fill="#050b14"/>
@@ -212,6 +212,13 @@ let serverSaveChain = Promise.resolve();
 let localWindowScreenAssignments = loadWindowScreenAssignments();
 let localScreens = [];
 let localScreenDetectionMessage = "";
+let youtubeDevices = { cameras: [], microphones: [] };
+let youtubePreviewStream = null;
+let youtubeMediaStream = null;
+let youtubeRecorder = null;
+let youtubeUploadChain = Promise.resolve();
+let youtubeDevicePermissionRequested = false;
+let youtubeSaveTimer = null;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -301,6 +308,21 @@ function cacheElements() {
     refereeCount: $("#referee-count"),
     iwfRulesEnabled: $("#iwf-rules-enabled"),
     childTechniqueEnabled: $("#child-technique-enabled"),
+    youtubeEndStream: $("#youtube-end-stream"),
+    youtubeForm: $("#youtube-form"),
+    youtubeEnabled: $("#youtube-enabled"),
+    youtubeClientId: $("#youtube-client-id"),
+    youtubeClientSecret: $("#youtube-client-secret"),
+    youtubePrivacy: $("#youtube-privacy"),
+    youtubeTitle: $("#youtube-title"),
+    youtubeFfmpegPath: $("#youtube-ffmpeg-path"),
+    youtubeCamera: $("#youtube-camera"),
+    youtubeMicrophone: $("#youtube-microphone"),
+    youtubePreview: $("#youtube-preview"),
+    youtubeStatusPill: $("#youtube-status-pill"),
+    youtubeStatusTitle: $("#youtube-status-title"),
+    youtubeStatusText: $("#youtube-status-text"),
+    youtubeWatchUrl: $("#youtube-watch-url"),
     athleteForm: $("#athlete-form"),
     athleteName: $("#athlete-name"),
     athleteTeam: $("#athlete-team"),
@@ -382,6 +404,11 @@ function bindEvents() {
     event.preventDefault();
     saveTeamFromForm();
   });
+
+  if (els.youtubeForm) {
+    els.youtubeForm.addEventListener("input", () => saveYouTubeSettings({ silent: true, debounce: true }));
+    els.youtubeForm.addEventListener("change", handleYouTubeFormChange);
+  }
 
   els.weighInForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -499,7 +526,9 @@ function startEventStream() {
     if (sessionInfo?.judges) {
       state.meta.judgeConnections = sessionInfo.judges;
     }
+    renderHeader();
     renderConnection();
+    if (activeSetupView === "youtube") renderYouTubeSettings();
     if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
   });
   eventSource.addEventListener("error", () => {
@@ -532,6 +561,7 @@ function renderAfterStateSync() {
   syncPhase();
   if (shouldDeferRenderForActiveInput()) {
     renderConnection();
+    if (activeSetupView === "youtube") renderYouTubeStatusOnly();
     if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
     return;
   }
@@ -554,6 +584,7 @@ function shouldDeferRenderForActiveInput() {
     Boolean(active.closest?.("#category-dialog")) ||
     Boolean(active.closest?.("#athlete-form")) ||
     Boolean(active.closest?.("#event-form")) ||
+    Boolean(active.closest?.("#youtube-form")) ||
     Boolean(active.closest?.("#group-form")) ||
     Boolean(active.closest?.("#team-form")) ||
     Boolean(active.closest?.("[data-relative-field]")) ||
@@ -591,6 +622,11 @@ function handleClick(event) {
   if (action === "open-window-screen-settings") openWindowScreenDialog();
   if (action === "close-window-screen-settings") closeWindowScreenDialog();
   if (action === "refresh-local-screens") refreshLocalScreens({ notify: true });
+  if (action === "youtube-save-settings") saveYouTubeSettings();
+  if (action === "youtube-connect") connectYouTubeAccount();
+  if (action === "youtube-refresh-devices") refreshYouTubeDevices({ requestPermission: true });
+  if (action === "youtube-preview") startYouTubePreview();
+  if (action === "end-youtube-stream") endYouTubeLiveStream();
   if (action === "open-category-settings") openCategorySettings();
   if (action === "close-category-settings") closeCategorySettings();
   if (action === "add-category-row") addCategoryRow();
@@ -1246,6 +1282,7 @@ function startCompetition() {
   openPlateWindow();
   openScoreboardWindow();
   openWaitingRoomDisplayWindow();
+  void startYouTubeLiveIfConfigured();
 }
 
 function startCleanJerk() {
@@ -1553,6 +1590,10 @@ function renderHeader() {
   const toggle = document.querySelector(".iwf-toggle");
   if (toggle) toggle.classList.toggle("hidden", state.meta.mode !== "setup");
   if (els.iwfRulesEnabled) els.iwfRulesEnabled.checked = isIwfMode();
+  if (els.youtubeEndStream) {
+    const youtube = sessionInfo?.youtube || {};
+    els.youtubeEndStream.classList.toggle("hidden", !["starting", "live", "stopping"].includes(youtube.status));
+  }
   renderActiveLogos();
 }
 
@@ -1625,6 +1666,7 @@ function setSetupView(view) {
   activeSetupView = allowed.includes(view) ? view : "competition";
   renderSetupViewContent();
   renderSetupViews();
+  if (activeSetupView === "youtube") void refreshYouTubeDevices({ requestPermission: false });
 }
 
 function renderSetupViews() {
@@ -1660,6 +1702,353 @@ function renderSetupViewContent() {
   if (activeSetupView === "categories") renderCategorySettings();
   if (activeSetupView === "plates") renderPlateSettings();
   if (activeSetupView === "teams") renderTeams();
+  if (activeSetupView === "youtube") renderYouTubeSettings();
+}
+
+function youtubePayload() {
+  return sessionInfo?.youtube || { connected: false, status: "idle", settings: {} };
+}
+
+function renderYouTubeSettings() {
+  if (!els.youtubeForm) return;
+  const youtube = youtubePayload();
+  const settings = youtube.settings || {};
+  const active = document.activeElement;
+  if (!active?.closest?.("#youtube-form")) {
+    els.youtubeEnabled.checked = Boolean(settings.enabled);
+    els.youtubeClientId.value = settings.clientId || "";
+    els.youtubeClientSecret.value = "";
+    els.youtubePrivacy.value = settings.privacyStatus || "unlisted";
+    els.youtubeTitle.value = settings.titleTemplate || "{event} - Livestream";
+    els.youtubeFfmpegPath.value = settings.ffmpegPath || "";
+    renderYouTubeDeviceSelects(settings);
+  }
+  renderYouTubeStatusOnly();
+}
+
+function renderYouTubeStatusOnly() {
+  if (!els.youtubeStatusPill) return;
+  const youtube = youtubePayload();
+  const statusMap = {
+    idle: "bereit",
+    starting: "startet",
+    live: "live",
+    stopping: "beendet",
+    complete: "beendet",
+    error: "Fehler",
+  };
+  const label = statusMap[youtube.status] || "nicht verbunden";
+  els.youtubeStatusPill.textContent = youtube.connected ? label : "nicht verbunden";
+  els.youtubeStatusPill.classList.toggle("ok", youtube.status === "live");
+  els.youtubeStatusPill.classList.toggle("danger", youtube.status === "error");
+  if (els.youtubeStatusTitle) {
+    els.youtubeStatusTitle.textContent = youtube.connected ? `YouTube ${label}` : "Nicht verbunden";
+  }
+  if (els.youtubeStatusText) {
+    const notes = [];
+    if (!serverMode) notes.push("YouTube Live ist nur in der installierten lokalen Server-App verfuegbar.");
+    if (!youtube.connected) notes.push("Mit YouTube verbinden, bevor der Wettkampf gestartet wird.");
+    if (youtube.connected && youtube.ffmpegFound === false) {
+      notes.push("FFmpeg wurde nicht gefunden. Bitte ffmpeg.exe in den Programmordner legen oder den Pfad eintragen.");
+    }
+    if (youtube.status === "live") notes.push("Livestream laeuft. Er endet erst ueber den Button Livestream beenden.");
+    if (youtube.error) notes.push(youtube.error);
+    els.youtubeStatusText.textContent = notes.join(" ") || "Bereit fuer den automatischen Livestream beim Wettkampfstart.";
+  }
+  if (els.youtubeWatchUrl) {
+    els.youtubeWatchUrl.innerHTML = youtube.watchUrl
+      ? `<a href="${escapeHtml(youtube.watchUrl)}" target="_blank" rel="noreferrer">${escapeHtml(youtube.watchUrl)}</a>`
+      : "";
+  }
+}
+
+function renderYouTubeDeviceSelects(settings = {}) {
+  if (!els.youtubeCamera || !els.youtubeMicrophone) return;
+  const currentCamera = els.youtubeCamera.value || settings.cameraDeviceId || "";
+  const currentMic = els.youtubeMicrophone.value || settings.microphoneDeviceId || "";
+  const cameraOptions = [...youtubeDevices.cameras];
+  const micOptions = [...youtubeDevices.microphones];
+  if (settings.cameraDeviceId && !cameraOptions.some((device) => device.deviceId === settings.cameraDeviceId)) {
+    cameraOptions.push({ deviceId: settings.cameraDeviceId, label: settings.cameraLabel || "Gespeicherte Kamera" });
+  }
+  if (settings.microphoneDeviceId && !micOptions.some((device) => device.deviceId === settings.microphoneDeviceId)) {
+    micOptions.push({ deviceId: settings.microphoneDeviceId, label: settings.microphoneLabel || "Gespeichertes Mikrofon" });
+  }
+  els.youtubeCamera.innerHTML = [
+    `<option value="">Standardkamera</option>`,
+    ...cameraOptions.map((device, index) => {
+      const label = device.label || `Kamera ${index + 1}`;
+      return `<option value="${escapeHtml(device.deviceId)}">${escapeHtml(label)}</option>`;
+    }),
+  ].join("");
+  els.youtubeMicrophone.innerHTML = [
+    `<option value="">Standardmikrofon</option>`,
+    ...micOptions.map((device, index) => {
+      const label = device.label || `Mikrofon ${index + 1}`;
+      return `<option value="${escapeHtml(device.deviceId)}">${escapeHtml(label)}</option>`;
+    }),
+  ].join("");
+  els.youtubeCamera.value = cameraOptions.some((device) => device.deviceId === currentCamera) ? currentCamera : "";
+  els.youtubeMicrophone.value = micOptions.some((device) => device.deviceId === currentMic) ? currentMic : "";
+}
+
+function handleYouTubeFormChange(event) {
+  saveYouTubeSettings({ silent: true, debounce: true });
+  if (event.target === els.youtubeCamera && youtubePreviewStream) {
+    window.setTimeout(() => startYouTubePreview(), 100);
+  }
+}
+
+function collectYouTubeSettingsFromForm() {
+  const cameraOption = els.youtubeCamera?.selectedOptions?.[0];
+  const micOption = els.youtubeMicrophone?.selectedOptions?.[0];
+  return {
+    enabled: Boolean(els.youtubeEnabled?.checked),
+    clientId: els.youtubeClientId?.value || "",
+    clientSecret: els.youtubeClientSecret?.value || "",
+    privacyStatus: els.youtubePrivacy?.value || "unlisted",
+    titleTemplate: els.youtubeTitle?.value || "{event} - Livestream",
+    ffmpegPath: els.youtubeFfmpegPath?.value || "",
+    cameraDeviceId: els.youtubeCamera?.value || "",
+    cameraLabel: cameraOption && cameraOption.value ? cameraOption.textContent : "",
+    microphoneDeviceId: els.youtubeMicrophone?.value || "",
+    microphoneLabel: micOption && micOption.value ? micOption.textContent : "",
+  };
+}
+
+async function saveYouTubeSettings(options = {}) {
+  if (options.debounce) {
+    window.clearTimeout(youtubeSaveTimer);
+    youtubeSaveTimer = window.setTimeout(() => saveYouTubeSettings({ silent: true }), 350);
+    return;
+  }
+  if (!serverMode) {
+    if (!options.silent) showToast("YouTube Live ist nur in der installierten Server-App verfuegbar.");
+    return;
+  }
+  try {
+    const response = await fetch("/api/youtube/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectYouTubeSettingsFromForm()),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "YouTube-Einstellungen konnten nicht gespeichert werden.");
+    if (!sessionInfo) sessionInfo = {};
+    sessionInfo.youtube = payload.youtube || sessionInfo.youtube;
+    renderYouTubeStatusOnly();
+    renderHeader();
+    if (!options.silent) showToast("YouTube-Einstellungen gespeichert.");
+  } catch (error) {
+    if (!options.silent) showToast(error.message || "YouTube-Einstellungen konnten nicht gespeichert werden.");
+  }
+}
+
+async function connectYouTubeAccount() {
+  if (!serverMode) {
+    showToast("YouTube-Verbindung ist nur in der installierten Server-App verfuegbar.");
+    return;
+  }
+  const authWindow = window.open("", "gewichtheben-youtube-auth", "width=820,height=760");
+  try {
+    await saveYouTubeSettings({ silent: true });
+    const response = await fetch("/api/youtube/auth/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectYouTubeSettingsFromForm()),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "YouTube-Anmeldung konnte nicht gestartet werden.");
+    if (authWindow) authWindow.location.href = payload.authUrl;
+    else window.open(payload.authUrl, "gewichtheben-youtube-auth", "width=820,height=760");
+    showToast("Google-Anmeldung geoeffnet. Nach der Freigabe ist YouTube verbunden.");
+    window.setTimeout(loadSessionInfoAndRenderYouTube, 2500);
+  } catch (error) {
+    if (authWindow) authWindow.close();
+    showToast(error.message || "YouTube-Anmeldung konnte nicht gestartet werden.");
+  }
+}
+
+async function loadSessionInfoAndRenderYouTube() {
+  await loadSessionInfo();
+  renderYouTubeSettings();
+  renderHeader();
+}
+
+async function refreshYouTubeDevices(options = {}) {
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    showToast("Dieser Browser kann Kamera und Mikrofon nicht auslesen.");
+    return;
+  }
+  try {
+    if (options.requestPermission && !youtubeDevicePermissionRequested) {
+      const streams = await Promise.allSettled([
+        navigator.mediaDevices.getUserMedia({ video: true }),
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+      ]);
+      streams.forEach((result) => {
+        if (result.status === "fulfilled") result.value.getTracks().forEach((track) => track.stop());
+      });
+      youtubeDevicePermissionRequested = true;
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    youtubeDevices = {
+      cameras: devices.filter((device) => device.kind === "videoinput"),
+      microphones: devices.filter((device) => device.kind === "audioinput"),
+    };
+    renderYouTubeDeviceSelects(youtubePayload().settings || {});
+    if (options.requestPermission) showToast("Kameras und Mikrofone aktualisiert.");
+  } catch (error) {
+    showToast("Kamera/Mikrofon konnte nicht gelesen werden. Bitte Browser-Berechtigung erlauben.");
+  }
+}
+
+function youtubeMediaConstraints(settings = collectYouTubeSettingsFromForm(), options = {}) {
+  const video = settings.cameraDeviceId ? { deviceId: { exact: settings.cameraDeviceId } } : true;
+  const audio = options.videoOnly ? false : settings.microphoneDeviceId ? { deviceId: { exact: settings.microphoneDeviceId } } : true;
+  return { video, audio };
+}
+
+async function startYouTubePreview() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast("Dieser Browser unterstuetzt keine Live-Vorschau.");
+    return;
+  }
+  stopYouTubePreview();
+  try {
+    youtubePreviewStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(undefined, { videoOnly: true }));
+    youtubeDevicePermissionRequested = true;
+    if (els.youtubePreview) els.youtubePreview.srcObject = youtubePreviewStream;
+    await refreshYouTubeDevices({ requestPermission: false });
+  } catch (error) {
+    showToast("Kamera-Vorschau konnte nicht gestartet werden.");
+  }
+}
+
+function stopYouTubePreview() {
+  if (youtubePreviewStream) {
+    youtubePreviewStream.getTracks().forEach((track) => track.stop());
+    youtubePreviewStream = null;
+  }
+  if (els.youtubePreview && els.youtubePreview.srcObject !== youtubeMediaStream) els.youtubePreview.srcObject = null;
+}
+
+async function startYouTubeLiveIfConfigured() {
+  if (!serverMode) return;
+  const storedSettings = youtubePayload().settings || {};
+  if (!storedSettings.enabled) return;
+  try {
+    if (activeSetupView === "youtube") await saveYouTubeSettings({ silent: true });
+    const response = await fetch("/api/youtube/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventName: state.meta.eventName,
+        category: state.meta.category,
+        platform: state.meta.group,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Livestream konnte nicht gestartet werden.");
+    if (!sessionInfo) sessionInfo = {};
+    sessionInfo.youtube = payload.youtube || sessionInfo.youtube;
+    renderHeader();
+    renderYouTubeStatusOnly();
+    if (!payload.skipped) await startYouTubeMediaCapture(youtubePayload().settings || storedSettings);
+    showToast(payload.skipped ? "YouTube-Livestream ist deaktiviert." : "YouTube-Livestream wird gestartet.");
+  } catch (error) {
+    showToast(error.message || "YouTube-Livestream konnte nicht gestartet werden.");
+    await loadSessionInfoAndRenderYouTube();
+  }
+}
+
+async function startYouTubeMediaCapture(settings = {}) {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    showToast("Dieser Browser kann den Livestream nicht aufnehmen.");
+    return;
+  }
+  stopYouTubePreview();
+  stopYouTubeMediaCapture();
+  try {
+    youtubeMediaStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings));
+  } catch (error) {
+    youtubeMediaStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings, { videoOnly: true }));
+    showToast("Mikrofon konnte nicht gestartet werden. Livestream laeuft ohne Ton.");
+  }
+  if (els.youtubePreview) els.youtubePreview.srcObject = youtubeMediaStream;
+  const mimeType = youtubeRecorderMimeType();
+  youtubeRecorder = new MediaRecorder(youtubeMediaStream, mimeType ? { mimeType } : undefined);
+  youtubeUploadChain = Promise.resolve();
+  youtubeRecorder.ondataavailable = (event) => {
+    if (!event.data || event.data.size === 0) return;
+    youtubeUploadChain = youtubeUploadChain
+      .then(() => postYouTubeMediaChunk(event.data))
+      .catch((error) => {
+        console.warn(error);
+      });
+  };
+  youtubeRecorder.onerror = () => showToast("Livestream-Aufnahme meldet einen Fehler.");
+  youtubeRecorder.start(1000);
+}
+
+function youtubeRecorderMimeType() {
+  const candidates = [
+    "video/webm;codecs=vp8,opus",
+    "video/webm;codecs=vp9,opus",
+    "video/webm",
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || "";
+}
+
+async function postYouTubeMediaChunk(blob) {
+  const response = await fetch("/api/youtube/media-chunk", {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: blob,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Livestream-Daten konnten nicht gesendet werden.");
+  }
+}
+
+function stopYouTubeMediaCapture() {
+  if (youtubeRecorder && youtubeRecorder.state !== "inactive") {
+    try {
+      youtubeRecorder.stop();
+    } catch (error) {
+      // best effort
+    }
+  }
+  youtubeRecorder = null;
+  if (youtubeMediaStream) {
+    youtubeMediaStream.getTracks().forEach((track) => track.stop());
+    youtubeMediaStream = null;
+  }
+  if (els.youtubePreview) els.youtubePreview.srcObject = null;
+}
+
+async function endYouTubeLiveStream() {
+  if (!serverMode) return;
+  try {
+    stopYouTubeMediaCapture();
+    await youtubeUploadChain.catch(() => {});
+    const response = await fetch("/api/youtube/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Livestream konnte nicht beendet werden.");
+    if (!sessionInfo) sessionInfo = {};
+    sessionInfo.youtube = payload.youtube || sessionInfo.youtube;
+    renderHeader();
+    renderYouTubeStatusOnly();
+    showToast("Livestream wurde beendet und bleibt bei YouTube als Video erhalten.");
+  } catch (error) {
+    showToast(error.message || "Livestream konnte nicht beendet werden.");
+    await loadSessionInfoAndRenderYouTube();
+  }
 }
 
 function renderGroupSelect() {
