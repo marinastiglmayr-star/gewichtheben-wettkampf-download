@@ -1894,10 +1894,19 @@ async function startYoutubeLivestream(req, res) {
   } catch (error) {
     shutdownYoutubeFfmpeg();
     youtubeRuntime.status = "error";
-    youtubeRuntime.error = error.message || "Livestream konnte nicht gestartet werden.";
+    youtubeRuntime.error = friendlyYoutubeError(error);
     broadcastSession();
     sendJson(res, 500, { error: youtubeRuntime.error, youtube: getYoutubePayload() });
   }
+}
+
+function friendlyYoutubeError(error) {
+  const message = String(error?.message || error || "").trim();
+  const normalized = message.toLowerCase();
+  if (normalized.includes("not enabled for live streaming") || normalized.includes("live streaming is not enabled")) {
+    return "YouTube Live ist fuer diesen Kanal noch nicht freigeschaltet. Bitte in YouTube Studio Live-Streaming aktivieren. Die Freischaltung kann bis zu 24 Stunden dauern.";
+  }
+  return message || "Livestream konnte nicht gestartet werden.";
 }
 
 async function receiveYoutubeMediaChunk(req, res) {
