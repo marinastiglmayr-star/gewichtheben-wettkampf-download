@@ -187,6 +187,25 @@
                   </div>
                   <span id="youtube-status-pill" class="status-pill">nicht verbunden</span>
                 </div>
+                <div class="livestream-guide">
+                  <div class="livestream-guide-card primary">
+                    <p class="eyebrow">Nur noetig</p>
+                    <h4>Client-ID, Kamera und Mikrofon</h4>
+                    <p>Client Secret und FFmpeg-Pfad koennen leer bleiben, solange die Verbindung und der Status keine Warnung zeigen.</p>
+                  </div>
+                  <div class="livestream-guide-card">
+                    <p class="eyebrow">Google</p>
+                    <h4>OAuth Client-ID erstellen</h4>
+                    <p>Google Cloud Console &gt; APIs &amp; Dienste &gt; Anmeldedaten &gt; OAuth-Client-ID &gt; Desktop-App. YouTube Data API v3 vorher aktivieren.</p>
+                    <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud Anmeldedaten oeffnen</a>
+                  </div>
+                  <div class="livestream-guide-card">
+                    <p class="eyebrow">FFmpeg</p>
+                    <h4>Meist automatisch</h4>
+                    <p>Leer lassen. Nur wenn FFmpeg nicht gefunden wird, den vollstaendigen Pfad zur ffmpeg.exe eintragen.</p>
+                    <a href="https://ffmpeg.org/download.html" target="_blank" rel="noreferrer">FFmpeg Download oeffnen</a>
+                  </div>
+                </div>
                 <form id="youtube-form" class="youtube-form" autocomplete="off">
                   <label class="toggle-field">
                     <span>Automatisch</span>
@@ -196,12 +215,14 @@
                     </span>
                   </label>
                   <label>
-                    <span>Google OAuth Client-ID</span>
+                    <span>Google OAuth Client-ID (Pflicht)</span>
                     <input id="youtube-client-id" type="text" placeholder="Client-ID aus Google Cloud" />
+                    <small class="field-hint">Aus dem OAuth-Client vom Typ Desktop-App kopieren.</small>
                   </label>
                   <label>
-                    <span>Client Secret</span>
+                    <span>Client Secret (optional)</span>
                     <input id="youtube-client-secret" type="password" placeholder="optional / falls vorhanden" />
+                    <small class="field-hint">Im gleichen Google-OAuth-Client. Bei Desktop-App meistens leer lassen.</small>
                   </label>
                   <label>
                     <span>Sichtbarkeit</span>
@@ -212,12 +233,14 @@
                     </select>
                   </label>
                   <label class="wide">
-                    <span>Titel</span>
+                    <span>Titel (vorausgefuellt)</span>
                     <input id="youtube-title" type="text" placeholder="{event} - Livestream" />
+                    <small class="field-hint">{event} wird automatisch durch den Wettkampfnamen ersetzt.</small>
                   </label>
                   <label class="wide">
-                    <span>FFmpeg-Pfad</span>
+                    <span>FFmpeg-Pfad (optional)</span>
                     <input id="youtube-ffmpeg-path" type="text" placeholder="leer lassen fuer automatische Suche" />
+                    <small class="field-hint">Nur eintragen, wenn der Status meldet, dass FFmpeg fehlt.</small>
                   </label>
                   <label>
                     <span>Kamera</span>

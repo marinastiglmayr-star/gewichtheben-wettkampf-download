@@ -295,6 +295,49 @@ h3 {
   width: 100%;
 }
 
+.livestream-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.livestream-guide-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.livestream-guide-card.primary {
+  border-color: rgba(8, 127, 140, 0.28);
+  background: rgba(8, 127, 140, 0.08);
+}
+
+.livestream-guide-card h4 {
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+.livestream-guide-card p {
+  color: var(--muted);
+}
+
+.livestream-guide-card a {
+  display: inline-flex;
+  margin-top: 10px;
+  color: var(--accent-strong);
+  font-weight: 850;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .youtube-form label.wide {
   grid-column: span 2;
 }
@@ -577,6 +620,7 @@ body.iwf-mode .support-card,
 body.iwf-mode .connection-panel,
 body.iwf-mode .youtube-preview-box,
 body.iwf-mode .youtube-status-box,
+body.iwf-mode .livestream-guide-card,
 body.iwf-mode .connection-status-card,
 body.iwf-mode .judge-slot,
 body.iwf-mode .display-routing-row,
@@ -610,6 +654,15 @@ body.iwf-mode .toggle-button:has(input:checked) {
   border-color: rgba(88, 166, 255, 0.72);
   background: rgba(88, 166, 255, 0.16);
   color: var(--accent-strong);
+}
+
+body.iwf-mode .livestream-guide-card.primary {
+  background: rgba(88, 166, 255, 0.12);
+  border-color: rgba(88, 166, 255, 0.42);
+}
+
+body.iwf-mode .livestream-guide-card a {
+  color: var(--accent);
 }
 
 body.iwf-mode input,
@@ -1339,6 +1392,7 @@ tbody tr:last-child td {
   .dashboard-grid,
   .current-grid,
   .connection-panel,
+  .livestream-guide,
   .youtube-preview-grid {
     grid-template-columns: 1fr;
   }

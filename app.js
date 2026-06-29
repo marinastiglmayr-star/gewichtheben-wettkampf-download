@@ -1747,13 +1747,13 @@ function renderYouTubeStatusOnly() {
   if (els.youtubeStatusText) {
     const notes = [];
     if (!serverMode) notes.push("YouTube Live ist nur in der installierten lokalen Server-App verfuegbar.");
-    if (!youtube.connected) notes.push("Mit YouTube verbinden, bevor der Wettkampf gestartet wird.");
+    if (!youtube.connected) notes.push("Google OAuth Client-ID eintragen und danach mit YouTube verbinden.");
     if (youtube.connected && youtube.ffmpegFound === false) {
-      notes.push("FFmpeg wurde nicht gefunden. Bitte ffmpeg.exe in den Programmordner legen oder den Pfad eintragen.");
+      notes.push("FFmpeg wurde nicht gefunden. FFmpeg-Pfad eintragen oder ffmpeg.exe in den Programmordner legen.");
     }
     if (youtube.status === "live") notes.push("Livestream laeuft. Er endet erst ueber den Button Livestream beenden.");
     if (youtube.error) notes.push(youtube.error);
-    els.youtubeStatusText.textContent = notes.join(" ") || "Bereit fuer den automatischen Livestream beim Wettkampfstart.";
+    els.youtubeStatusText.textContent = notes.join(" ") || "Bereit. Kamera und Mikrofon waehlen, dann kann der Livestream beim Wettkampfstart automatisch beginnen.";
   }
   if (els.youtubeWatchUrl) {
     els.youtubeWatchUrl.innerHTML = youtube.watchUrl

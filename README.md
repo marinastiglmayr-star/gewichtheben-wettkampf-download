@@ -75,11 +75,22 @@ Wenn die Adresse am Handy nicht lädt:
 
 Im Reiter `Livestream` kann ein YouTube-Livestream vorbereitet werden. Die Verbindung zu YouTube läuft über Google OAuth; es wird kein YouTube-Passwort in der App gespeichert.
 
-Benötigt wird:
+In der App muss im Normalfall nur Folgendes ausgefuellt werden:
+
+- `Google OAuth Client-ID`: Google Cloud Console -> APIs & Dienste -> YouTube Data API v3 aktivieren -> Anmeldedaten -> OAuth-Client-ID -> Desktop-App
+- `Kamera` und `Mikrofon`: aus den angeschlossenen Geraeten waehlen
+- `Livestream bei Wettkampfstart beginnen`: aktivieren, wenn die Uebertragung automatisch starten soll
+
+Optional:
+
+- `Client Secret`: steht im gleichen Google-OAuth-Client. Bei einem Desktop-App-Client kann das Feld in dieser App meistens leer bleiben.
+- `FFmpeg-Pfad`: leer lassen, wenn FFmpeg automatisch gefunden wird. Nur den vollstaendigen Pfad zur `ffmpeg.exe` eintragen, wenn die App meldet, dass FFmpeg fehlt.
+
+Technisch benoetigt wird:
 
 - ein YouTube-Kanal, auf dem Livestreaming freigeschaltet ist
 - ein Google-OAuth-Client mit der Weiterleitungsadresse `http://127.0.0.1:8765/api/youtube/oauth-callback`
-- FFmpeg, entweder als `runtime\ffmpeg.exe` im Programmordner oder über den eingetragenen FFmpeg-Pfad
+- FFmpeg, entweder als `runtime\ffmpeg.exe` im Programmordner, ueber `ffmpeg` im Windows-PATH oder ueber den eingetragenen FFmpeg-Pfad
 
 Im Reiter werden Kamera und Mikrofon ausgewählt. Die Kamera kann direkt als Live-Vorschau geprüft werden. Wenn `Livestream bei Wettkampfstart beginnen` aktiv ist, erstellt die App beim Start des Wettkampfs automatisch eine YouTube-Liveübertragung und sendet Kamera und Mikrofon dorthin. Der Livestream endet beim Wettkampfende nicht automatisch; er wird erst über `Livestream beenden` geschlossen und bleibt dann bei YouTube als Video erhalten.
 
