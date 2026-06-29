@@ -1583,6 +1583,10 @@ async function startYoutubeAuth(req, res) {
     sendJson(res, 400, { error: "Bitte zuerst die Google OAuth Client-ID eintragen." });
     return;
   }
+  if (!youtubeConfig.clientSecret) {
+    sendJson(res, 400, { error: "Bitte zuerst das Google OAuth Client Secret eintragen. Google verlangt es fuer diesen Desktop-Client." });
+    return;
+  }
 
   const verifier = base64Url(crypto.randomBytes(48));
   const challenge = base64Url(crypto.createHash("sha256").update(verifier).digest());
@@ -1656,7 +1660,13 @@ async function exchangeYoutubeCode(code, verifier) {
     body: params,
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error_description || payload.error || "OAuth-Token konnte nicht gelesen werden.");
+  if (!response.ok) {
+    const message = payload.error_description || payload.error || "OAuth-Token konnte nicht gelesen werden.";
+    if (String(message).toLowerCase().includes("client_secret")) {
+      throw new Error("Google meldet: Client Secret fehlt oder ist falsch. Bitte Client Secret aus dem Google-OAuth-Client eintragen.");
+    }
+    throw new Error(message);
+  }
   return payload;
 }
 

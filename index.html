@@ -190,8 +190,8 @@
                 <div class="livestream-guide">
                   <div class="livestream-guide-card primary">
                     <p class="eyebrow">Nur noetig</p>
-                    <h4>Client-ID, Kamera und Mikrofon</h4>
-                    <p>Client Secret und FFmpeg-Pfad koennen leer bleiben, solange die Verbindung und der Status keine Warnung zeigen.</p>
+                    <h4>Client-ID, Client Secret, Kamera und Mikrofon</h4>
+                    <p>Client-ID und Client Secret kommen aus demselben Google-OAuth-Client. FFmpeg-Pfad nur eintragen, wenn der Status eine Warnung zeigt.</p>
                   </div>
                   <div class="livestream-guide-card">
                     <p class="eyebrow">Google</p>
@@ -220,9 +220,9 @@
                     <small class="field-hint">Aus dem OAuth-Client vom Typ Desktop-App kopieren.</small>
                   </label>
                   <label>
-                    <span>Client Secret (optional)</span>
-                    <input id="youtube-client-secret" type="password" placeholder="optional / falls vorhanden" />
-                    <small class="field-hint">Im gleichen Google-OAuth-Client. Bei Desktop-App meistens leer lassen.</small>
+                    <span>Client Secret (Pflicht)</span>
+                    <input id="youtube-client-secret" type="password" placeholder="Client Secret aus Google Cloud" />
+                    <small class="field-hint">Im gleichen OAuth-Client wie die Client-ID kopieren.</small>
                   </label>
                   <label>
                     <span>Sichtbarkeit</span>

@@ -78,12 +78,12 @@ Im Reiter `Livestream` kann ein YouTube-Livestream vorbereitet werden. Die Verbi
 In der App muss im Normalfall nur Folgendes ausgefuellt werden:
 
 - `Google OAuth Client-ID`: Google Cloud Console -> APIs & Dienste -> YouTube Data API v3 aktivieren -> Anmeldedaten -> OAuth-Client-ID -> Desktop-App
+- `Client Secret`: steht im gleichen Google-OAuth-Client wie die Client-ID
 - `Kamera` und `Mikrofon`: aus den angeschlossenen Geraeten waehlen
 - `Livestream bei Wettkampfstart beginnen`: aktivieren, wenn die Uebertragung automatisch starten soll
 
 Optional:
 
-- `Client Secret`: steht im gleichen Google-OAuth-Client. Bei einem Desktop-App-Client kann das Feld in dieser App meistens leer bleiben.
 - `FFmpeg-Pfad`: leer lassen, wenn FFmpeg automatisch gefunden wird. Nur den vollstaendigen Pfad zur `ffmpeg.exe` eintragen, wenn die App meldet, dass FFmpeg fehlt.
 
 Technisch benoetigt wird:
