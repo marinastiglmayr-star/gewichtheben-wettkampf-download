@@ -315,6 +315,9 @@ function cacheElements() {
     childTechniqueEnabled: $("#child-technique-enabled"),
     streamStatusTop: $("#stream-status-top"),
     streamStatusTopLabel: $("#stream-status-top-label"),
+    topCameraPreview: $("#top-camera-preview"),
+    topCameraVideo: $("#top-camera-video"),
+    topCameraEmpty: $("#top-camera-empty"),
     youtubeEndStream: $("#youtube-end-stream"),
     youtubeForm: $("#youtube-form"),
     youtubeEnabled: $("#youtube-enabled"),
@@ -1605,6 +1608,7 @@ function renderHeader() {
     els.youtubeEndStream.classList.toggle("hidden", !["starting", "live", "stopping"].includes(youtube.status));
   }
   renderStreamTopStatus();
+  renderTopCameraPreview();
   renderActiveLogos();
 }
 
@@ -1638,6 +1642,25 @@ function renderStreamTopStatus() {
   els.streamStatusTopLabel.textContent = `Stream: ${status.label}`;
   els.streamStatusTop.classList.remove("ok", "live", "paused", "warning", "danger");
   if (status.tone && status.tone !== "neutral") els.streamStatusTop.classList.add(status.tone);
+}
+
+function renderTopCameraPreview() {
+  if (!els.topCameraPreview || !els.topCameraVideo) return;
+  const visible = state.meta.mode !== "setup" && Boolean(youtubeMediaStream);
+  els.topCameraPreview.classList.toggle("hidden", !visible);
+  els.topCameraPreview.classList.toggle("active", visible);
+  if (visible) {
+    setVideoElementStream(els.topCameraVideo, youtubeMediaStream);
+  } else if (els.topCameraVideo.srcObject) {
+    els.topCameraVideo.srcObject = null;
+  }
+  els.topCameraEmpty?.classList.toggle("hidden", visible);
+}
+
+function setVideoElementStream(video, stream) {
+  if (!video) return;
+  if (video.srcObject !== stream) video.srcObject = stream || null;
+  if (stream) video.play?.().catch(() => {});
 }
 
 function renderSetup() {
@@ -2069,7 +2092,8 @@ async function startYouTubeMediaCapture(settings = {}) {
   }
   youtubeSourceMediaStream = sourceStream;
   youtubeMediaStream = await createYouTubeOverlayMediaStream(sourceStream);
-  if (els.youtubePreview) els.youtubePreview.srcObject = youtubeMediaStream;
+  setVideoElementStream(els.youtubePreview, youtubeMediaStream);
+  renderTopCameraPreview();
   const mimeType = youtubeRecorderMimeType();
   youtubeRecorder = new MediaRecorder(youtubeMediaStream, mimeType ? { mimeType } : undefined);
   youtubeUploadChain = Promise.resolve();
@@ -2365,6 +2389,7 @@ function stopYouTubeMediaCapture() {
   youtubeMediaStream = null;
   youtubeSourceMediaStream = null;
   if (els.youtubePreview) els.youtubePreview.srcObject = null;
+  renderTopCameraPreview();
   setYouTubePreviewState(false);
 }
 

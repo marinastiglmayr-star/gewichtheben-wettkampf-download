@@ -159,6 +159,40 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
 }
 
+.top-camera-preview {
+  position: relative;
+  width: 96px;
+  height: 54px;
+  flex: 0 0 96px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0c141c;
+  box-shadow: 0 6px 18px rgba(18, 31, 42, 0.12);
+}
+
+.top-camera-preview video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.top-camera-preview.active {
+  border-color: rgba(20, 122, 66, 0.35);
+}
+
+.top-camera-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: center;
+}
+
 @keyframes stream-pulse {
   0%,
   100% {
@@ -759,6 +793,16 @@ body.iwf-mode .stream-status-top.danger {
   border-color: rgba(255, 122, 122, 0.42);
   background: rgba(255, 122, 122, 0.1);
   color: var(--bad);
+}
+
+body.iwf-mode .top-camera-preview {
+  border-color: var(--line);
+  background: #050b12;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+body.iwf-mode .top-camera-preview.active {
+  border-color: rgba(81, 207, 102, 0.42);
 }
 
 body.iwf-mode .panel,
