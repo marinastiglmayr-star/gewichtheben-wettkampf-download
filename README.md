@@ -84,7 +84,7 @@ In der App muss im Normalfall nur Folgendes ausgefuellt werden:
 
 Optional:
 
-- `FFmpeg-Pfad`: leer lassen, wenn FFmpeg automatisch gefunden wird. Nur den vollstaendigen Pfad zur `ffmpeg.exe` eintragen, wenn die App meldet, dass FFmpeg fehlt.
+- `FFmpeg-Pfad`: leer lassen, wenn FFmpeg automatisch gefunden wird. Wenn FFmpeg fehlt, im Reiter `Livestream` den Button `FFmpeg automatisch einrichten` nutzen oder den vollstaendigen Pfad zur `ffmpeg.exe` eintragen. Die Datei `ffmpeg-*.tar.xz` ist nur Quellcode und reicht unter Windows nicht aus.
 
 Technisch benoetigt wird:
 

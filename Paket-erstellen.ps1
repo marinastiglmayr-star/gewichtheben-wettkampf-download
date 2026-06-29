@@ -106,6 +106,26 @@ if ($ffmpegCommand) {
 }
 
 $ffmpegSource = $ffmpegCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if (-not $ffmpegSource -and $IsWindows -ne $false) {
+  $ffmpegDownloadUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+  $ffmpegTemp = Join-Path $env:TEMP ("gewichtheben-ffmpeg-" + [guid]::NewGuid().ToString("N"))
+  try {
+    New-Item -ItemType Directory -Path $ffmpegTemp -Force | Out-Null
+    $ffmpegZip = Join-Path $ffmpegTemp "ffmpeg-release-essentials.zip"
+    $ffmpegExtract = Join-Path $ffmpegTemp "extract"
+    Write-Host "FFmpeg wird fuer das Paket heruntergeladen:"
+    Write-Host $ffmpegDownloadUrl
+    Invoke-WebRequest -Uri $ffmpegDownloadUrl -OutFile $ffmpegZip
+    New-Item -ItemType Directory -Path $ffmpegExtract -Force | Out-Null
+    Expand-Archive -LiteralPath $ffmpegZip -DestinationPath $ffmpegExtract -Force
+    $downloadedFfmpeg = Get-ChildItem -LiteralPath $ffmpegExtract -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+    if ($downloadedFfmpeg) {
+      $ffmpegSource = $downloadedFfmpeg.FullName
+    }
+  } catch {
+    Write-Warning "FFmpeg konnte nicht automatisch heruntergeladen werden: $($_.Exception.Message)"
+  }
+}
 if ($ffmpegSource) {
   Copy-Item -LiteralPath $ffmpegSource -Destination (Join-Path $stage "runtime\ffmpeg.exe") -Force
   Write-Host "FFmpeg fuer YouTube-Livestream gebuendelt:"

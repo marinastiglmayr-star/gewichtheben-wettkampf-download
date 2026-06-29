@@ -90,6 +90,85 @@ button:disabled {
   gap: 12px;
 }
 
+.stream-status-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.stream-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #9aa5ad;
+  box-shadow: 0 0 0 3px rgba(154, 165, 173, 0.14);
+}
+
+.stream-status-top.ok {
+  border-color: rgba(20, 122, 66, 0.35);
+  background: rgba(20, 122, 66, 0.1);
+  color: var(--good);
+}
+
+.stream-status-top.ok .stream-status-dot {
+  background: var(--good);
+  box-shadow: 0 0 0 3px rgba(20, 122, 66, 0.14);
+}
+
+.stream-status-top.live {
+  border-color: rgba(20, 122, 66, 0.45);
+  background: rgba(20, 122, 66, 0.16);
+  color: var(--good);
+}
+
+.stream-status-top.live .stream-status-dot {
+  background: var(--good);
+  animation: stream-pulse 1.25s ease-in-out infinite;
+}
+
+.stream-status-top.paused,
+.stream-status-top.warning {
+  border-color: rgba(176, 112, 0, 0.38);
+  background: rgba(176, 112, 0, 0.12);
+  color: #8a5a00;
+}
+
+.stream-status-top.paused .stream-status-dot,
+.stream-status-top.warning .stream-status-dot {
+  background: #b07000;
+  box-shadow: 0 0 0 3px rgba(176, 112, 0, 0.15);
+}
+
+.stream-status-top.danger {
+  border-color: rgba(180, 35, 24, 0.38);
+  background: rgba(180, 35, 24, 0.12);
+  color: var(--bad);
+}
+
+.stream-status-top.danger .stream-status-dot {
+  background: var(--bad);
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
+}
+
+@keyframes stream-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(20, 122, 66, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(20, 122, 66, 0.04);
+  }
+}
+
 .brand-mark {
   width: 64px;
   height: 32px;
@@ -275,6 +354,18 @@ h3 {
   white-space: nowrap;
 }
 
+.status-pill.ok {
+  border-color: rgba(20, 122, 66, 0.38);
+  background: rgba(20, 122, 66, 0.14);
+  color: var(--good);
+}
+
+.status-pill.danger {
+  border-color: rgba(180, 35, 24, 0.38);
+  background: rgba(180, 35, 24, 0.12);
+  color: var(--bad);
+}
+
 .lift-tab.active {
   border-color: rgba(8, 127, 140, 0.35);
   background: rgba(8, 127, 140, 0.12);
@@ -365,6 +456,7 @@ h3 {
 }
 
 .youtube-preview-box {
+  position: relative;
   display: grid;
   place-items: center;
   aspect-ratio: 16 / 9;
@@ -378,11 +470,43 @@ h3 {
   background: #111820;
 }
 
+.youtube-preview-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: #eef4f6;
+  color: var(--muted);
+  font-weight: 850;
+  text-align: center;
+}
+
 .youtube-status-box {
   display: grid;
   align-content: start;
   gap: 10px;
   padding: 14px;
+}
+
+.youtube-status-box.ok {
+  border-color: rgba(20, 122, 66, 0.32);
+  background: rgba(20, 122, 66, 0.08);
+}
+
+.youtube-status-box.ok h4 {
+  color: var(--good);
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  line-height: 1;
+}
+
+.youtube-status-box.danger {
+  border-color: rgba(180, 35, 24, 0.32);
+  background: rgba(180, 35, 24, 0.08);
+}
+
+.youtube-status-box.danger h4 {
+  color: var(--bad);
 }
 
 .athlete-form {
@@ -611,6 +735,32 @@ body.iwf-mode .topbar {
   background: rgba(7, 17, 31, 0.92);
 }
 
+body.iwf-mode .stream-status-top {
+  border-color: var(--line);
+  background: #101f34;
+  color: var(--muted);
+}
+
+body.iwf-mode .stream-status-top.ok,
+body.iwf-mode .stream-status-top.live {
+  border-color: rgba(81, 207, 102, 0.42);
+  background: rgba(81, 207, 102, 0.12);
+  color: var(--good);
+}
+
+body.iwf-mode .stream-status-top.paused,
+body.iwf-mode .stream-status-top.warning {
+  border-color: rgba(255, 193, 7, 0.42);
+  background: rgba(255, 193, 7, 0.12);
+  color: #ffd166;
+}
+
+body.iwf-mode .stream-status-top.danger {
+  border-color: rgba(255, 122, 122, 0.42);
+  background: rgba(255, 122, 122, 0.1);
+  color: var(--bad);
+}
+
 body.iwf-mode .panel,
 body.iwf-mode .athlete-form,
 body.iwf-mode .group-manager,
@@ -654,6 +804,25 @@ body.iwf-mode .toggle-button:has(input:checked) {
   border-color: rgba(88, 166, 255, 0.72);
   background: rgba(88, 166, 255, 0.16);
   color: var(--accent-strong);
+}
+
+body.iwf-mode .status-pill.ok,
+body.iwf-mode .youtube-status-box.ok {
+  border-color: rgba(81, 207, 102, 0.4);
+  background: rgba(81, 207, 102, 0.12);
+  color: var(--good);
+}
+
+body.iwf-mode .status-pill.danger,
+body.iwf-mode .youtube-status-box.danger {
+  border-color: rgba(255, 122, 122, 0.42);
+  background: rgba(255, 122, 122, 0.1);
+  color: var(--bad);
+}
+
+body.iwf-mode .youtube-preview-empty {
+  background: #091525;
+  color: var(--muted);
 }
 
 body.iwf-mode .livestream-guide-card.primary {

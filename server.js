@@ -213,6 +213,11 @@ async function route(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/youtube/ffmpeg/install" && req.method === "POST") {
+    await installYoutubeFfmpeg(req, res);
+    return;
+  }
+
   if (url.pathname === "/api/youtube/oauth-callback" && req.method === "GET") {
     await handleYoutubeOAuthCallback(url, res);
     return;
@@ -1567,6 +1572,81 @@ async function updateYoutubeSettings(req, res) {
   await persistYoutubeConfig();
   broadcastSession();
   sendJson(res, 200, { ok: true, youtube: getYoutubePayload() });
+}
+
+async function installYoutubeFfmpeg(req, res) {
+  await readJson(req).catch(() => ({}));
+  const existing = resolveFfmpegPath();
+  if (existing) {
+    sendJson(res, 200, { ok: true, alreadyInstalled: true, ffmpegPath: existing, youtube: getYoutubePayload() });
+    return;
+  }
+  try {
+    const installedPath = await installFfmpegWithPowerShell();
+    if (youtubeRuntime.status === "error" && youtubeRuntime.error.toLowerCase().includes("ffmpeg")) {
+      youtubeRuntime.status = "idle";
+      youtubeRuntime.error = "";
+    }
+    broadcastSession();
+    sendJson(res, 200, { ok: true, alreadyInstalled: false, ffmpegPath: installedPath, youtube: getYoutubePayload() });
+  } catch (error) {
+    youtubeRuntime.status = "error";
+    youtubeRuntime.error = error.message || "FFmpeg konnte nicht eingerichtet werden.";
+    broadcastSession();
+    sendJson(res, 500, { error: youtubeRuntime.error, youtube: getYoutubePayload() });
+  }
+}
+
+function installFfmpegWithPowerShell() {
+  if (process.platform !== "win32") {
+    return Promise.reject(new Error("FFmpeg automatisch einrichten ist aktuell nur fuer Windows vorgesehen."));
+  }
+  const targetDir = path.join(ROOT, "runtime");
+  const target = path.join(targetDir, "ffmpeg.exe");
+  const script = `
+$ErrorActionPreference = 'Stop'
+$downloadUrl = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('gewichtheben-ffmpeg-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+$zipPath = Join-Path $tempRoot 'ffmpeg-release-essentials.zip'
+Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+$extractPath = Join-Path $tempRoot 'extract'
+New-Item -ItemType Directory -Path $extractPath -Force | Out-Null
+Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
+$ffmpeg = Get-ChildItem -LiteralPath $extractPath -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
+if (-not $ffmpeg) { throw 'ffmpeg.exe wurde im heruntergeladenen Paket nicht gefunden.' }
+$targetDir = '${powershellSingleQuote(targetDir)}'
+New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+$target = Join-Path $targetDir 'ffmpeg.exe'
+Copy-Item -LiteralPath $ffmpeg.FullName -Destination $target -Force
+Write-Output $target
+`;
+  return new Promise((resolve, reject) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => reject(error));
+    child.on("exit", (code) => {
+      if (code === 0 && fsSync.existsSync(target)) {
+        resolve(target);
+        return;
+      }
+      reject(new Error((stderr || stdout || `PowerShell wurde mit Code ${code} beendet.`).trim()));
+    });
+  });
+}
+
+function powershellSingleQuote(value) {
+  return String(value).replace(/'/g, "''");
 }
 
 async function startYoutubeAuth(req, res) {

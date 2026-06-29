@@ -219,6 +219,7 @@ let youtubeRecorder = null;
 let youtubeUploadChain = Promise.resolve();
 let youtubeDevicePermissionRequested = false;
 let youtubeSaveTimer = null;
+let youtubePreviewStartTimer = null;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -308,6 +309,8 @@ function cacheElements() {
     refereeCount: $("#referee-count"),
     iwfRulesEnabled: $("#iwf-rules-enabled"),
     childTechniqueEnabled: $("#child-technique-enabled"),
+    streamStatusTop: $("#stream-status-top"),
+    streamStatusTopLabel: $("#stream-status-top-label"),
     youtubeEndStream: $("#youtube-end-stream"),
     youtubeForm: $("#youtube-form"),
     youtubeEnabled: $("#youtube-enabled"),
@@ -319,6 +322,8 @@ function cacheElements() {
     youtubeCamera: $("#youtube-camera"),
     youtubeMicrophone: $("#youtube-microphone"),
     youtubePreview: $("#youtube-preview"),
+    youtubePreviewEmpty: $("#youtube-preview-empty"),
+    youtubeStatusBox: $("#youtube-status-box"),
     youtubeStatusPill: $("#youtube-status-pill"),
     youtubeStatusTitle: $("#youtube-status-title"),
     youtubeStatusText: $("#youtube-status-text"),
@@ -626,6 +631,7 @@ function handleClick(event) {
   if (action === "youtube-connect") connectYouTubeAccount();
   if (action === "youtube-refresh-devices") refreshYouTubeDevices({ requestPermission: true });
   if (action === "youtube-preview") startYouTubePreview();
+  if (action === "youtube-install-ffmpeg") installYouTubeFfmpeg();
   if (action === "end-youtube-stream") endYouTubeLiveStream();
   if (action === "open-category-settings") openCategorySettings();
   if (action === "close-category-settings") closeCategorySettings();
@@ -1594,7 +1600,34 @@ function renderHeader() {
     const youtube = sessionInfo?.youtube || {};
     els.youtubeEndStream.classList.toggle("hidden", !["starting", "live", "stopping"].includes(youtube.status));
   }
+  renderStreamTopStatus();
   renderActiveLogos();
+}
+
+function getYouTubeUiStatus() {
+  const youtube = youtubePayload();
+  const ffmpegMissing = youtube.connected && youtube.ffmpegFound === false;
+  const ready = youtube.connected && !ffmpegMissing && !["error", "starting", "live", "stopping", "paused"].includes(youtube.status);
+  const map = {
+    idle: ffmpegMissing ? { label: "FFmpeg fehlt", tone: "danger" } : { label: "Bereit", tone: "ok" },
+    starting: { label: "Startet", tone: "warning" },
+    live: { label: "Live", tone: "live" },
+    paused: { label: "Pausiert", tone: "paused" },
+    stopping: { label: "Beendet", tone: "warning" },
+    complete: { label: "Bereit", tone: "ok" },
+    error: { label: "Fehler", tone: "danger" },
+  };
+  if (!youtube.connected) return { label: "nicht verbunden", tone: "neutral", ffmpegMissing, ready, youtube };
+  const status = map[youtube.status] || { label: youtube.status || "Status offen", tone: "neutral" };
+  return { ...status, ffmpegMissing, ready, youtube };
+}
+
+function renderStreamTopStatus() {
+  if (!els.streamStatusTop || !els.streamStatusTopLabel) return;
+  const status = getYouTubeUiStatus();
+  els.streamStatusTopLabel.textContent = `Stream: ${status.label}`;
+  els.streamStatusTop.classList.remove("ok", "live", "paused", "warning", "danger");
+  if (status.tone && status.tone !== "neutral") els.streamStatusTop.classList.add(status.tone);
 }
 
 function renderSetup() {
@@ -1724,32 +1757,28 @@ function renderYouTubeSettings() {
     renderYouTubeDeviceSelects(settings);
   }
   renderYouTubeStatusOnly();
+  scheduleYouTubePreviewStart();
 }
 
 function renderYouTubeStatusOnly() {
   if (!els.youtubeStatusPill) return;
-  const youtube = youtubePayload();
-  const statusMap = {
-    idle: "bereit",
-    starting: "startet",
-    live: "live",
-    stopping: "beendet",
-    complete: "beendet",
-    error: "Fehler",
-  };
-  const label = statusMap[youtube.status] || "nicht verbunden";
+  const status = getYouTubeUiStatus();
+  const { youtube, ffmpegMissing, ready } = status;
+  const label = status.label;
   els.youtubeStatusPill.textContent = youtube.connected ? label : "nicht verbunden";
-  els.youtubeStatusPill.classList.toggle("ok", youtube.status === "live");
-  els.youtubeStatusPill.classList.toggle("danger", youtube.status === "error");
+  els.youtubeStatusPill.classList.toggle("ok", ready || youtube.status === "live");
+  els.youtubeStatusPill.classList.toggle("danger", youtube.status === "error" || ffmpegMissing);
+  els.youtubeStatusBox?.classList.toggle("ok", ready || youtube.status === "live");
+  els.youtubeStatusBox?.classList.toggle("danger", youtube.status === "error" || ffmpegMissing);
   if (els.youtubeStatusTitle) {
-    els.youtubeStatusTitle.textContent = youtube.connected ? `YouTube ${label}` : "Nicht verbunden";
+    els.youtubeStatusTitle.textContent = youtube.connected ? label : "Nicht verbunden";
   }
   if (els.youtubeStatusText) {
     const notes = [];
     if (!serverMode) notes.push("YouTube Live ist nur in der installierten lokalen Server-App verfuegbar.");
     if (!youtube.connected) notes.push("Google OAuth Client-ID und Client Secret eintragen und danach mit YouTube verbinden.");
-    if (youtube.connected && youtube.ffmpegFound === false) {
-      notes.push("FFmpeg wurde nicht gefunden. FFmpeg-Pfad eintragen oder ffmpeg.exe in den Programmordner legen.");
+    if (ffmpegMissing) {
+      notes.push("YouTube ist verbunden. FFmpeg fehlt noch. Nutze den Button FFmpeg automatisch einrichten.");
     }
     if (youtube.status === "live") notes.push("Livestream laeuft. Er endet erst ueber den Button Livestream beenden.");
     if (youtube.error) notes.push(youtube.error);
@@ -1760,6 +1789,7 @@ function renderYouTubeStatusOnly() {
       ? `<a href="${escapeHtml(youtube.watchUrl)}" target="_blank" rel="noreferrer">${escapeHtml(youtube.watchUrl)}</a>`
       : "";
   }
+  renderStreamTopStatus();
 }
 
 function renderYouTubeDeviceSelects(settings = {}) {
@@ -1794,7 +1824,7 @@ function renderYouTubeDeviceSelects(settings = {}) {
 
 function handleYouTubeFormChange(event) {
   saveYouTubeSettings({ silent: true, debounce: true });
-  if (event.target === els.youtubeCamera && youtubePreviewStream) {
+  if (event.target === els.youtubeCamera) {
     window.setTimeout(() => startYouTubePreview(), 100);
   }
 }
@@ -1869,6 +1899,31 @@ async function connectYouTubeAccount() {
   }
 }
 
+async function installYouTubeFfmpeg() {
+  if (!serverMode) {
+    showToast("FFmpeg kann nur in der installierten Server-App eingerichtet werden.");
+    return;
+  }
+  try {
+    showToast("FFmpeg wird eingerichtet. Das kann einen Moment dauern.");
+    await saveYouTubeSettings({ silent: true });
+    const response = await fetch("/api/youtube/ffmpeg/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "FFmpeg konnte nicht eingerichtet werden.");
+    if (!sessionInfo) sessionInfo = {};
+    sessionInfo.youtube = payload.youtube || sessionInfo.youtube;
+    renderYouTubeSettings();
+    showToast(payload.alreadyInstalled ? "FFmpeg ist bereits eingerichtet." : "FFmpeg wurde eingerichtet.");
+  } catch (error) {
+    showToast(error.message || "FFmpeg konnte nicht eingerichtet werden.");
+    await loadSessionInfoAndRenderYouTube();
+  }
+}
+
 async function loadSessionInfoAndRenderYouTube() {
   await loadSessionInfo();
   renderYouTubeSettings();
@@ -1897,7 +1952,10 @@ async function refreshYouTubeDevices(options = {}) {
       microphones: devices.filter((device) => device.kind === "audioinput"),
     };
     renderYouTubeDeviceSelects(youtubePayload().settings || {});
-    if (options.requestPermission) showToast("Kameras und Mikrofone aktualisiert.");
+    if (options.requestPermission) {
+      showToast("Kameras und Mikrofone aktualisiert.");
+      window.setTimeout(() => startYouTubePreview({ silent: true }), 100);
+    }
   } catch (error) {
     showToast("Kamera/Mikrofon konnte nicht gelesen werden. Bitte Browser-Berechtigung erlauben.");
   }
@@ -1909,19 +1967,39 @@ function youtubeMediaConstraints(settings = collectYouTubeSettingsFromForm(), op
   return { video, audio };
 }
 
-async function startYouTubePreview() {
+function scheduleYouTubePreviewStart() {
+  if (activeSetupView !== "youtube") return;
+  if (!els.youtubePreview || youtubePreviewStream || youtubeMediaStream) return;
+  window.clearTimeout(youtubePreviewStartTimer);
+  youtubePreviewStartTimer = window.setTimeout(() => startYouTubePreview({ silent: true }), 250);
+}
+
+function setYouTubePreviewState(active, message = "Kamera-Vorschau startet nach Auswahl der Kamera.") {
+  if (els.youtubePreviewEmpty) {
+    els.youtubePreviewEmpty.textContent = message;
+    els.youtubePreviewEmpty.classList.toggle("hidden", Boolean(active));
+  }
+}
+
+async function startYouTubePreview(options = {}) {
   if (!navigator.mediaDevices?.getUserMedia) {
-    showToast("Dieser Browser unterstuetzt keine Live-Vorschau.");
+    if (!options.silent) showToast("Dieser Browser unterstuetzt keine Live-Vorschau.");
+    setYouTubePreviewState(false, "Dieser Browser unterstuetzt keine Live-Vorschau.");
     return;
   }
   stopYouTubePreview();
   try {
     youtubePreviewStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(undefined, { videoOnly: true }));
     youtubeDevicePermissionRequested = true;
-    if (els.youtubePreview) els.youtubePreview.srcObject = youtubePreviewStream;
+    if (els.youtubePreview) {
+      els.youtubePreview.srcObject = youtubePreviewStream;
+      await els.youtubePreview.play?.().catch(() => {});
+    }
+    setYouTubePreviewState(true);
     await refreshYouTubeDevices({ requestPermission: false });
   } catch (error) {
-    showToast("Kamera-Vorschau konnte nicht gestartet werden.");
+    setYouTubePreviewState(false, "Kamera-Vorschau konnte nicht gestartet werden. Bitte Browser-Berechtigung pruefen.");
+    if (!options.silent) showToast("Kamera-Vorschau konnte nicht gestartet werden.");
   }
 }
 
@@ -1930,7 +2008,10 @@ function stopYouTubePreview() {
     youtubePreviewStream.getTracks().forEach((track) => track.stop());
     youtubePreviewStream = null;
   }
-  if (els.youtubePreview && els.youtubePreview.srcObject !== youtubeMediaStream) els.youtubePreview.srcObject = null;
+  if (els.youtubePreview && els.youtubePreview.srcObject !== youtubeMediaStream) {
+    els.youtubePreview.srcObject = null;
+    setYouTubePreviewState(false);
+  }
 }
 
 async function startYouTubeLiveIfConfigured() {
@@ -2026,6 +2107,7 @@ function stopYouTubeMediaCapture() {
     youtubeMediaStream = null;
   }
   if (els.youtubePreview) els.youtubePreview.srcObject = null;
+  setYouTubePreviewState(false);
 }
 
 async function endYouTubeLiveStream() {

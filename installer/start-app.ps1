@@ -359,10 +359,13 @@ function Copy-UpdatedFiles {
     }
   }
 
-  $runtimeSource = Join-Path $SourceRoot "runtime\node.exe"
-  if (Test-Path $runtimeSource) {
-    New-Item -ItemType Directory -Path (Join-Path $appDir "runtime") -Force | Out-Null
-    Copy-Item -LiteralPath $runtimeSource -Destination (Join-Path $appDir "runtime\node.exe") -Force
+  $runtimeDir = Join-Path $appDir "runtime"
+  foreach ($runtimeFile in @("node.exe", "ffmpeg.exe")) {
+    $runtimeSource = Join-Path $SourceRoot "runtime\$runtimeFile"
+    if (Test-Path $runtimeSource) {
+      New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
+      Copy-Item -LiteralPath $runtimeSource -Destination (Join-Path $runtimeDir $runtimeFile) -Force
+    }
   }
 }
 

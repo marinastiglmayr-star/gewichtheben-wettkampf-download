@@ -24,6 +24,10 @@
           <input id="iwf-rules-enabled" type="checkbox" />
           <span>IWF Regeln</span>
         </label>
+        <div id="stream-status-top" class="stream-status-top" title="Livestream-Status">
+          <span class="stream-status-dot" aria-hidden="true"></span>
+          <span id="stream-status-top-label">Stream: nicht verbunden</span>
+        </div>
         <button type="button" class="ghost-button" data-action="generate-registration-list" title="Meldeliste erstellen">
           Meldeliste
         </button>
@@ -255,13 +259,15 @@
                     <button type="button" class="primary-button" data-action="youtube-connect">Mit YouTube verbinden</button>
                     <button type="button" class="ghost-button" data-action="youtube-refresh-devices">Geraete aktualisieren</button>
                     <button type="button" class="ghost-button" data-action="youtube-preview">Kamera testen</button>
+                    <button type="button" class="ghost-button" data-action="youtube-install-ffmpeg">FFmpeg automatisch einrichten</button>
                   </div>
                 </form>
                 <div class="youtube-preview-grid">
                   <div class="youtube-preview-box">
                     <video id="youtube-preview" autoplay muted playsinline></video>
+                    <div id="youtube-preview-empty" class="youtube-preview-empty">Kamera-Vorschau startet nach Auswahl der Kamera.</div>
                   </div>
-                  <div class="youtube-status-box">
+                  <div id="youtube-status-box" class="youtube-status-box">
                     <p class="eyebrow">Status</p>
                     <h4 id="youtube-status-title">Nicht verbunden</h4>
                     <p id="youtube-status-text" class="muted">OAuth-Verbindung und Geraete auswaehlen.</p>
