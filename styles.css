@@ -328,6 +328,34 @@ h3 {
   width: 100%;
 }
 
+.guided-return-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 2px solid rgba(8, 127, 140, 0.32);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(8, 127, 140, 0.1), #fff);
+  box-shadow: 0 10px 26px rgba(18, 31, 42, 0.08);
+}
+
+.guided-return-bar p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+.guided-return-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .guided-setup-window {
   display: grid;
   gap: 16px;
@@ -1017,6 +1045,7 @@ body.iwf-mode .athlete-form,
 body.iwf-mode .group-manager,
 body.iwf-mode .setup-nav,
 body.iwf-mode .guided-setup-window,
+body.iwf-mode .guided-return-bar,
 body.iwf-mode .guided-step-card,
 body.iwf-mode .guided-step-pill,
 body.iwf-mode .guided-mode-button,
@@ -1042,6 +1071,11 @@ body.iwf-mode dialog {
 body.iwf-mode .guided-setup-window {
   background: linear-gradient(180deg, rgba(88, 166, 255, 0.12), rgba(9, 21, 37, 0.96) 170px);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+}
+
+body.iwf-mode .guided-return-bar {
+  background: linear-gradient(90deg, rgba(88, 166, 255, 0.16), rgba(9, 21, 37, 0.96));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
 }
 
 body.iwf-mode .guided-progress-bar {
@@ -1883,6 +1917,15 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 760px) {
+  .guided-return-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guided-return-actions {
+    justify-content: flex-start;
+  }
+
   .topbar,
   .panel-head,
   .competition-head,

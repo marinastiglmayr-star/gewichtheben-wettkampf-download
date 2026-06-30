@@ -201,6 +201,7 @@ let relativeTableGender = "male";
 let ageFactorGender = "male";
 let activeSetupView = "guided";
 let guidedSetupStepIndex = 0;
+let guidedSetupReturnActive = false;
 let toastTimer = null;
 let serverMode = false;
 let sessionInfo = null;
@@ -307,6 +308,7 @@ function cacheElements() {
     competitionPanel: $("#competition-panel"),
     connectionPanel: $("#connection-panel"),
     guidedSetupPanel: $("#guided-setup-panel"),
+    guidedReturnBar: $("#guided-return-bar"),
     eventSummary: $("#event-summary"),
     eventForm: $("#event-form"),
     eventName: $("#event-name"),
@@ -625,8 +627,11 @@ function handleClick(event) {
   if (action === "move-group") moveGroup(id, button.dataset.direction);
   if (action === "set-setup-view") setSetupView(button.dataset.view);
   if (action === "guided-next") guidedSetupNext();
+  if (action === "guided-prev") guidedSetupPrev();
   if (action === "guided-cancel") guidedSetupCancel();
   if (action === "guided-open-view") guidedSetupOpenView(button.dataset.view);
+  if (action === "guided-return") guidedSetupReturn();
+  if (action === "guided-return-next") guidedSetupNext();
   if (action === "guided-set-mode") guidedSetupSetMode(button.dataset.mode);
   if (action === "guided-start-competition") startCompetition();
   if (action === "cancel-edit") clearAthleteForm();
@@ -1737,6 +1742,7 @@ function renderSetup() {
 function setSetupView(view) {
   const allowed = getAllowedSetupViews();
   activeSetupView = allowed.includes(view) ? view : "competition";
+  if (activeSetupView === "guided") guidedSetupReturnActive = false;
   renderSetupViewContent();
   renderSetupViews();
   if (activeSetupView === "youtube") void refreshYouTubeDevices({ requestPermission: false });
@@ -1762,6 +1768,7 @@ function getAllowedSetupViews() {
 }
 
 function renderSetupViewContent() {
+  renderGuidedReturnBar();
   if (activeSetupView === "guided") renderGuidedSetup();
   if (activeSetupView === "athletes") {
     renderGroupSelect();
@@ -1804,7 +1811,7 @@ function renderGuidedSetup() {
       `
       : "";
   const openButton = step.view
-    ? `<button type="button" class="ghost-button" data-action="guided-open-view" data-view="${escapeHtml(step.view)}">Passenden Reiter oeffnen</button>`
+    ? `<button type="button" class="ghost-button" data-action="guided-open-view" data-view="${escapeHtml(step.view)}">Hier pruefen / bearbeiten</button>`
     : "";
 
   els.guidedSetupPanel.innerHTML = `
@@ -1855,6 +1862,7 @@ function renderGuidedSetup() {
           ${isLast && startWarning ? `<p class="warning-text">${escapeHtml(startWarning)}</p>` : ""}
           <div class="guided-actions">
             <button type="button" class="ghost-button" data-action="guided-cancel">Abbrechen</button>
+            <button type="button" class="ghost-button" data-action="guided-prev" ${guidedSetupStepIndex === 0 ? "disabled" : ""}>Zurueck</button>
             ${openButton}
             ${
               isLast
@@ -1864,6 +1872,30 @@ function renderGuidedSetup() {
           </div>
         </section>
       </div>
+    </div>
+  `;
+}
+
+function renderGuidedReturnBar() {
+  if (!els.guidedReturnBar) return;
+  const steps = getGuidedSetupSteps();
+  const step = steps[Math.min(Math.max(guidedSetupStepIndex, 0), Math.max(steps.length - 1, 0))];
+  const visible = state.meta.mode === "setup" && guidedSetupReturnActive && activeSetupView !== "guided" && Boolean(step);
+  els.guidedReturnBar.classList.toggle("hidden", !visible);
+  if (!visible) {
+    els.guidedReturnBar.innerHTML = "";
+    return;
+  }
+  els.guidedReturnBar.innerHTML = `
+    <div>
+      <p class="eyebrow">Begleitete Einrichtung</p>
+      <strong>Schritt ${guidedSetupStepIndex + 1} von ${steps.length}: ${escapeHtml(step.title)}</strong>
+      <p>${escapeHtml(step.hint)}</p>
+    </div>
+    <div class="guided-return-actions">
+      <button type="button" class="ghost-button" data-action="guided-prev" ${guidedSetupStepIndex === 0 ? "disabled" : ""}>Zurueck</button>
+      <button type="button" class="primary-button" data-action="guided-return-next">${guidedSetupStepIndex >= steps.length - 1 ? "Startpruefung anzeigen" : "Weiter"}</button>
+      <button type="button" class="ghost-button" data-action="guided-return">Assistent verlassen</button>
     </div>
   `;
 }
@@ -2101,12 +2133,34 @@ function relativeTableLabel(key) {
 }
 
 function guidedSetupNext() {
+  moveGuidedSetupStep(1);
+}
+
+function guidedSetupPrev() {
+  moveGuidedSetupStep(-1);
+}
+
+function moveGuidedSetupStep(direction) {
   const steps = getGuidedSetupSteps();
-  guidedSetupStepIndex = Math.min(guidedSetupStepIndex + 1, Math.max(steps.length - 1, 0));
+  if (!steps.length) return;
+  const lastIndex = Math.max(steps.length - 1, 0);
+  const nextIndex = Math.min(Math.max(guidedSetupStepIndex + direction, 0), lastIndex);
+  const unchangedAtEnd = guidedSetupReturnActive && direction > 0 && guidedSetupStepIndex >= lastIndex;
+  guidedSetupStepIndex = nextIndex;
+  if (unchangedAtEnd) {
+    guidedSetupReturnActive = false;
+    setSetupView("guided");
+    return;
+  }
+  if (guidedSetupReturnActive && activeSetupView !== "guided") {
+    showGuidedStepWorkView();
+    return;
+  }
   renderGuidedSetup();
 }
 
 function guidedSetupCancel() {
+  guidedSetupReturnActive = false;
   guidedSetupStepIndex = 0;
   setSetupView("competition");
 }
@@ -2114,11 +2168,33 @@ function guidedSetupCancel() {
 function guidedSetupOpenView(view) {
   const allowed = getAllowedSetupViews();
   if (!allowed.includes(view)) return;
+  guidedSetupReturnActive = true;
   setSetupView(view);
+}
+
+function guidedSetupReturn() {
+  guidedSetupReturnActive = false;
+  renderSetupViewContent();
+}
+
+function showGuidedStepWorkView() {
+  const steps = getGuidedSetupSteps();
+  const step = steps[Math.min(Math.max(guidedSetupStepIndex, 0), Math.max(steps.length - 1, 0))];
+  const allowed = getAllowedSetupViews();
+  if (step?.view && allowed.includes(step.view)) {
+    activeSetupView = step.view;
+    renderSetupViewContent();
+    renderSetupViews();
+    if (activeSetupView === "youtube") void refreshYouTubeDevices({ requestPermission: false });
+    return;
+  }
+  guidedSetupReturnActive = false;
+  setSetupView("guided");
 }
 
 function guidedSetupSetMode(mode) {
   setScoringMode(mode);
+  guidedSetupReturnActive = false;
   guidedSetupStepIndex = 0;
   activeSetupView = "guided";
   render();
