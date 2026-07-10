@@ -2238,7 +2238,7 @@ function renderYouTubeStatusOnly() {
   if (els.youtubeStatusText) {
     const notes = [];
     if (!serverMode) notes.push("YouTube Live ist nur in der installierten lokalen Server-App verfuegbar.");
-    if (!youtube.connected) notes.push("Google OAuth Client-ID und Client Secret eintragen und danach mit YouTube verbinden.");
+    if (!youtube.connected) notes.push("Google OAuth Client-ID pruefen und danach mit YouTube verbinden. Client Secret nur lokal eintragen, falls Google es verlangt.");
     if (ffmpegMissing) {
       notes.push("YouTube ist verbunden. FFmpeg fehlt noch. Nutze den Button FFmpeg automatisch einrichten.");
     }

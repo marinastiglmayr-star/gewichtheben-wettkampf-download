@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT) || 8765;
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, "competition-state.json");
 const YOUTUBE_SETTINGS_FILE = path.join(ROOT, "youtube-live-settings.json");
+const YOUTUBE_CLIENT_ID_FILE = path.join(ROOT, "youtube-client-id.txt");
 const BACKUP_DIR = path.join(ROOT, "backups");
 const LATEST_BACKUP_FILE = "latest.json";
 const MAX_BACKUPS = 200;
@@ -1457,7 +1458,7 @@ function sendHtml(res, status, html) {
 function defaultYoutubeConfig() {
   return {
     enabled: false,
-    clientId: "",
+    clientId: defaultYoutubeClientId(),
     clientSecret: "",
     refreshToken: "",
     accessToken: "",
@@ -1470,6 +1471,16 @@ function defaultYoutubeConfig() {
     microphoneLabel: "",
     ffmpegPath: "",
   };
+}
+
+function defaultYoutubeClientId() {
+  const fromEnv = String(process.env.YOUTUBE_CLIENT_ID || "").trim();
+  if (fromEnv) return fromEnv;
+  try {
+    return fsSync.readFileSync(YOUTUBE_CLIENT_ID_FILE, "utf8").trim();
+  } catch (error) {
+    return "";
+  }
 }
 
 function defaultYoutubeRuntime() {
@@ -1507,7 +1518,7 @@ function normalizeYoutubeConfig(input = {}) {
   return {
     ...base,
     enabled: Boolean(input.enabled),
-    clientId: String(input.clientId || "").trim(),
+    clientId: String(input.clientId || base.clientId || "").trim(),
     clientSecret: String(input.clientSecret || ""),
     refreshToken: String(input.refreshToken || ""),
     accessToken: String(input.accessToken || ""),
@@ -1663,10 +1674,6 @@ async function startYoutubeAuth(req, res) {
     sendJson(res, 400, { error: "Bitte zuerst die Google OAuth Client-ID eintragen." });
     return;
   }
-  if (!youtubeConfig.clientSecret) {
-    sendJson(res, 400, { error: "Bitte zuerst das Google OAuth Client Secret eintragen. Google verlangt es fuer diesen Desktop-Client." });
-    return;
-  }
 
   const verifier = base64Url(crypto.randomBytes(48));
   const challenge = base64Url(crypto.createHash("sha256").update(verifier).digest());
@@ -1743,7 +1750,7 @@ async function exchangeYoutubeCode(code, verifier) {
   if (!response.ok) {
     const message = payload.error_description || payload.error || "OAuth-Token konnte nicht gelesen werden.";
     if (String(message).toLowerCase().includes("client_secret")) {
-      throw new Error("Google meldet: Client Secret fehlt oder ist falsch. Bitte Client Secret aus dem Google-OAuth-Client eintragen.");
+      throw new Error("Google meldet: Client Secret fehlt oder ist falsch. Falls dieser OAuth-Client ein Secret verlangt, bitte lokal im Livestream-Reiter eintragen.");
     }
     throw new Error(message);
   }

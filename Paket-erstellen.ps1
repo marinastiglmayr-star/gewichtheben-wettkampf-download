@@ -69,6 +69,13 @@ foreach ($file in $rootFiles) {
   Copy-Item -LiteralPath (Join-Path $root $file) -Destination (Join-Path $stage $file) -Force
 }
 
+foreach ($file in @("youtube-client-id.txt")) {
+  $source = Join-Path $root $file
+  if (Test-Path $source) {
+    Copy-Item -LiteralPath $source -Destination (Join-Path $stage $file) -Force
+  }
+}
+
 foreach ($file in $installerFiles) {
   Copy-Item -LiteralPath (Join-Path $root "installer\$file") -Destination (Join-Path $stage "installer\$file") -Force
 }

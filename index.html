@@ -208,12 +208,12 @@
                   <div class="livestream-guide-card primary">
                     <p class="eyebrow">Nur noetig</p>
                     <h4>Client-ID, Client Secret, Kamera und Mikrofon</h4>
-                    <p>Client-ID und Client Secret kommen aus demselben Google-OAuth-Client. FFmpeg-Pfad nur eintragen, wenn der Status eine Warnung zeigt.</p>
+                    <p>Die Client-ID ist im Vereinsprogramm vorbelegt. Das Client Secret bleibt leer, außer Google verlangt es beim Verbinden ausdrücklich.</p>
                   </div>
                   <div class="livestream-guide-card">
                     <p class="eyebrow">Google</p>
                     <h4>OAuth Client-ID erstellen</h4>
-                    <p>Google Cloud Console &gt; APIs &amp; Dienste &gt; Anmeldedaten &gt; OAuth-Client-ID &gt; Desktop-App. YouTube Data API v3 vorher aktivieren.</p>
+                    <p>Google Cloud Console &gt; APIs &amp; Dienste &gt; Anmeldedaten &gt; OAuth-Client-ID &gt; Desktop-App. YouTube Data API v3 vorher aktivieren. Das Secret nicht öffentlich speichern.</p>
                     <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud Anmeldedaten oeffnen</a>
                   </div>
                   <div class="livestream-guide-card">
@@ -237,9 +237,9 @@
                     <small class="field-hint">Aus dem OAuth-Client vom Typ Desktop-App kopieren.</small>
                   </label>
                   <label>
-                    <span>Client Secret (Pflicht)</span>
-                    <input id="youtube-client-secret" type="password" placeholder="Client Secret aus Google Cloud" />
-                    <small class="field-hint">Im gleichen OAuth-Client wie die Client-ID kopieren.</small>
+                    <span>Client Secret (optional)</span>
+                    <input id="youtube-client-secret" type="password" placeholder="nur eintragen, falls Google es verlangt" />
+                    <small class="field-hint">Nicht ins Repository laden. Leer lassen, solange die Verbindung funktioniert.</small>
                   </label>
                   <label>
                     <span>Sichtbarkeit</span>
