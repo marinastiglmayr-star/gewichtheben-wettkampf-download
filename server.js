@@ -1817,7 +1817,7 @@ async function youtubeApi(method, endpoint, query = {}, body = null) {
 
 async function startYoutubeLivestream(req, res) {
   const body = await readJson(req);
-  if (!youtubeConfig.enabled) {
+  if (!youtubeConfig.enabled && !body.forceStart) {
     sendJson(res, 200, { ok: true, skipped: true, youtube: getYoutubePayload() });
     return;
   }

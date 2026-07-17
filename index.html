@@ -663,6 +663,13 @@
 
     <input id="import-file" class="hidden" type="file" accept="application/json,.json" />
 
+    <dialog id="competition-start-dialog" class="relative-dialog start-stream-dialog">
+      <div class="start-stream-actions" aria-label="Wettkampfstart auswaehlen">
+        <button type="button" class="primary-button" data-action="confirm-start-with-stream">Mit Stream starten</button>
+        <button type="button" class="ghost-button" data-action="confirm-start-without-stream">Ohne Stream starten</button>
+      </div>
+    </dialog>
+
     <dialog id="backup-dialog" class="relative-dialog wide-dialog backup-dialog">
       <div class="dialog-head">
         <div>

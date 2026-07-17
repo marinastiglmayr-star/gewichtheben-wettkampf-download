@@ -353,6 +353,7 @@ function cacheElements() {
     athleteEntryTotal: $("#athlete-entry-total"),
     saveAthlete: $("#save-athlete"),
     cancelEdit: $("#cancel-edit"),
+    competitionStartDialog: $("#competition-start-dialog"),
     weighInDialog: $("#weigh-in-dialog"),
     weighInForm: $("#weigh-in-form"),
     weighGroupFilter: $("#weigh-group-filter"),
@@ -633,12 +634,14 @@ function handleClick(event) {
   if (action === "guided-return") guidedSetupReturn();
   if (action === "guided-return-next") guidedSetupNext();
   if (action === "guided-set-mode") guidedSetupSetMode(button.dataset.mode);
-  if (action === "guided-start-competition") startCompetition();
+  if (action === "guided-start-competition") requestCompetitionStart();
+  if (action === "confirm-start-with-stream") confirmCompetitionStart(true);
+  if (action === "confirm-start-without-stream") confirmCompetitionStart(false);
   if (action === "cancel-edit") clearAthleteForm();
   if (action === "close-weigh-in") closeWeighInDialog();
   if (action === "weigh-prev") moveWeighInSelection(-1);
   if (action === "weigh-next") moveWeighInSelection(1);
-  if (action === "start-competition") startCompetition();
+  if (action === "start-competition") requestCompetitionStart();
   if (action === "open-plates") openPlateWindow();
   if (action === "open-waiting-room-display") openWaitingRoomDisplayWindow();
   if (action === "open-display-routing") openDisplayRoutingDialog();
@@ -1269,13 +1272,31 @@ function parseOptionalBirthYear(value) {
   return parsed;
 }
 
-function startCompetition() {
+function requestCompetitionStart() {
   const error = validateStartList();
   if (error) {
     showToast(error);
     return;
   }
+  if (els.competitionStartDialog?.showModal) {
+    els.competitionStartDialog.showModal();
+    return;
+  }
+  startCompetition({ withStream: false });
+}
 
+function confirmCompetitionStart(withStream) {
+  if (els.competitionStartDialog?.open) els.competitionStartDialog.close();
+  startCompetition({ withStream });
+}
+
+function startCompetition(options = {}) {
+  const withStream = Boolean(options.withStream);
+  const error = validateStartList();
+  if (error) {
+    showToast(error);
+    return;
+  }
   state.groups.forEach((group) => {
     group.completed = false;
     group.snatchCompleted = false;
@@ -1307,7 +1328,7 @@ function startCompetition() {
   openPlateWindow();
   openScoreboardWindow();
   openWaitingRoomDisplayWindow();
-  void startYouTubeLiveIfConfigured();
+  if (withStream) void startYouTubeLiveIfConfigured({ force: true });
 }
 
 function startCleanJerk() {
@@ -2476,16 +2497,17 @@ function stopYouTubePreview() {
   }
 }
 
-async function startYouTubeLiveIfConfigured() {
+async function startYouTubeLiveIfConfigured(options = {}) {
   if (!serverMode) return;
   const storedSettings = youtubePayload().settings || {};
-  if (!storedSettings.enabled) return;
+  if (!options.force && !storedSettings.enabled) return;
   try {
     if (activeSetupView === "youtube") await saveYouTubeSettings({ silent: true });
     const response = await fetch("/api/youtube/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        forceStart: Boolean(options.force),
         eventName: state.meta.eventName,
         category: state.meta.category,
         platform: state.meta.group,
