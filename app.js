@@ -6083,10 +6083,11 @@ function formatIwfTeamAthletes(row) {
 function buildIwfGroupResultSections() {
   const sections = new Map();
   getIwfStandings(state.athletes).forEach((row) => {
-    const key = row.classificationKey || "none";
+    const groupId = row.athlete?.groupId || "none";
+    const key = `${groupId}|${row.classificationKey || "none"}`;
     if (!sections.has(key)) {
       sections.set(key, {
-        title: iwfResultSectionTitle(row),
+        title: `Gruppe ${groupNameById(groupId)} - ${iwfResultSectionTitle(row)}`,
         rows: [],
       });
     }
@@ -6095,13 +6096,14 @@ function buildIwfGroupResultSections() {
 
   return [...sections.values()]
     .map((section) => {
-      const rows = buildIwfResultTableRows(section.rows);
+      const rows = buildIwfResultTableRows(addSequentialResultPlaces(section.rows, (row) => row.hasValidTotal));
       return `
         <section class="section-break">
           <h2>${escapeHtml(section.title)}</h2>
           <table>
             <thead>
               <tr>
+                <th>Platz Klasse</th>
                 <th>Rang</th>
                 <th>Name</th>
                 <th>Verein</th>
@@ -6119,7 +6121,7 @@ function buildIwfGroupResultSections() {
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="15">Keine Athleten in dieser Wertungsklasse.</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="16">Keine Athleten in dieser Wertungsklasse.</td></tr>`}</tbody>
           </table>
         </section>
       `;
@@ -6138,6 +6140,7 @@ function buildIwfResultTableRows(standings) {
     .map(
       (row) => `
         <tr>
+          <td>${formatResultPlace(row)}</td>
           <td>${row.outOfCompetition ? "AK" : row.totalRank || "-"}</td>
           <td>${escapeHtml(row.athlete.name)}${row.outOfCompetition ? " (AK)" : ""}</td>
           <td>${escapeHtml(row.athlete.team || "-")}</td>
@@ -6205,17 +6208,18 @@ function buildGroupResultSections() {
   return getOrderedGroups()
     .map((group) => {
       const groupAthletes = athletesForGroup(group.id).filter((athlete) => !athlete.withdrawn);
-      const standings = getStandings(groupAthletes);
+      const standings = addClubClassPlaces(getStandings(groupAthletes));
       const showTechnique = shouldShowTechniqueColumn(groupAthletes);
       const showAgeFactor = shouldShowAgeFactorColumn(groupAthletes);
       const rows = buildResultTableRows(standings, showTechnique, showAgeFactor);
-      const emptyColspan = 14 + (showTechnique ? 1 : 0) + (showAgeFactor ? 2 : 0);
+      const emptyColspan = 15 + (showTechnique ? 1 : 0) + (showAgeFactor ? 2 : 0);
       return `
         <section class="section-break">
           <h2>Ergebnisliste Gruppe ${escapeHtml(group.name)}</h2>
           <table>
             <thead>
               <tr>
+                <th>Platz Klasse</th>
                 <th>Rang</th>
                 <th>Name</th>
                 <th>Verein</th>
@@ -6251,6 +6255,7 @@ function buildResultTableRows(
     .map(
       (row) => `
         <tr>
+          <td>${formatResultPlace(row)}</td>
           <td>${row.outOfCompetition ? "AK" : row.rank || "-"}</td>
           <td>${escapeHtml(row.athlete.name)}${row.outOfCompetition ? " (AK)" : ""}</td>
           <td>${escapeHtml(row.athlete.team || "-")}</td>
@@ -6275,6 +6280,37 @@ function buildResultTableRows(
       `,
     )
     .join("");
+}
+
+function addClubClassPlaces(rows) {
+  const counters = new Map();
+  return (rows || []).map((row) => {
+    const key = [
+      row.athlete?.groupId || "none",
+      normalizeAgeClass(row.athlete?.ageClass),
+      row.athlete?.weightClass || "none",
+    ].join("|");
+    const placed = row.total && !row.outOfCompetition;
+    if (!placed) return { ...row, classPlace: null };
+    const nextPlace = (counters.get(key) || 0) + 1;
+    counters.set(key, nextPlace);
+    return { ...row, classPlace: nextPlace };
+  });
+}
+
+function addSequentialResultPlaces(rows, isPlaced = (row) => row.total) {
+  let place = 0;
+  return (rows || []).map((row) => {
+    const placed = isPlaced(row) && !row.outOfCompetition;
+    if (!placed) return { ...row, classPlace: null };
+    place += 1;
+    return { ...row, classPlace: place };
+  });
+}
+
+function formatResultPlace(row) {
+  if (row.outOfCompetition) return "AK";
+  return row.classPlace || "-";
 }
 
 function buildRelativeAwardsHtml(standings) {
