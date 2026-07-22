@@ -635,6 +635,21 @@ h3 {
   color: var(--bad);
 }
 
+.ak-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid rgba(184, 107, 0, 0.34);
+  border-radius: 999px;
+  background: rgba(184, 107, 0, 0.12);
+  color: var(--amber);
+  font-size: 0.76rem;
+  font-weight: 900;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .lift-tab.active {
   border-color: rgba(8, 127, 140, 0.35);
   background: rgba(8, 127, 140, 0.12);

@@ -173,8 +173,8 @@ function renderStandings() {
       .map(
         (row, index) => `
           <tr>
-            <td>${row.total ? index + 1 : "-"}</td>
-            <td><strong>${escapeHtml(row.athlete.name)}</strong><br><span class="muted">${escapeHtml(row.athlete.team || "-")} / ${escapeHtml(teamNameById(row.athlete.teamId))}</span></td>
+            <td>${row.outOfCompetition ? "AK" : row.rank || "-"}</td>
+            <td>${renderAthleteName(row.athlete)}<br><span class="muted">${escapeHtml(row.athlete.team || "-")} / ${escapeHtml(teamNameById(row.athlete.teamId))}</span></td>
             <td>${escapeHtml(groupNameById(row.athlete.groupId))}</td>
             <td>${row.snatch || "-"}</td>
             <td>${row.cleanJerk || "-"}</td>
@@ -216,8 +216,8 @@ function renderIwfStandings() {
       .map(
         (row) => `
           <tr>
-            <td>${row.totalRank || "-"}</td>
-            <td><strong>${escapeHtml(row.athlete.name)}</strong><br><span class="muted">${escapeHtml(row.athlete.team || "-")} / ${escapeHtml(teamNameById(row.athlete.teamId))}</span></td>
+            <td>${row.outOfCompetition ? "AK" : row.totalRank || "-"}</td>
+            <td>${renderAthleteName(row.athlete)}<br><span class="muted">${escapeHtml(row.athlete.team || "-")} / ${escapeHtml(teamNameById(row.athlete.teamId))}</span></td>
             <td>${escapeHtml(ageClassLabel(row.athlete.ageClass))}</td>
             <td>${escapeHtml(row.iwfBodyweightCategory)}</td>
             <td>${row.hasValidSnatch ? row.bestSnatch : "-"}</td>
@@ -302,7 +302,7 @@ function renderIwfTeams(target) {
 }
 
 function getStandings(athletes) {
-  return athletes
+  const rows = athletes
     .filter((athlete) => !athlete.withdrawn)
     .map((athlete) => {
       const snatch = bestWeight(athlete, "snatch");
@@ -330,17 +330,25 @@ function getStandings(athletes) {
         ageFactor,
         ageAdjustedScore,
         score: ageAdjustedScore,
+        outOfCompetition: isOutOfCompetition(athlete),
       };
     })
     .sort((a, b) => {
+      if (a.outOfCompetition !== b.outOfCompetition) return a.outOfCompetition ? 1 : -1;
       if (a.score !== b.score) return b.score - a.score;
       if (a.total !== b.total) return b.total - a.total;
       return String(a.athlete.name).localeCompare(String(b.athlete.name), "de-DE");
     });
+  let rank = 0;
+  return rows.map((row) => {
+    const ranked = row.total && !row.outOfCompetition;
+    if (ranked) rank += 1;
+    return { ...row, rank: ranked ? rank : null };
+  });
 }
 
 function getTeamStandings(athletes) {
-  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn);
+  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn && !isOutOfCompetition(athlete));
   const individualRows = getStandings(eligibleAthletes);
   const rowByAthlete = new Map(individualRows.map((row) => [row.athlete.id, row]));
   return getTeams()
@@ -397,6 +405,7 @@ function calculateIwfAthleteResult(athlete) {
     iwfGender,
     isIwfEligible,
     classificationKey: iwfClassificationKey(athlete),
+    outOfCompetition: isOutOfCompetition(athlete),
     status: !isIwfEligible ? "not-iwf" : hasValidTotal ? "valid-total" : hasAnyRecordedAttempt(athlete) ? "no-total" : "not-started",
   };
 }
@@ -411,6 +420,7 @@ function getIwfStandings(athletes) {
       totalRank: ranks.total.get(row.athlete.id) || null,
     }))
     .sort((a, b) => {
+      if (a.outOfCompetition !== b.outOfCompetition) return a.outOfCompetition ? 1 : -1;
       if (a.hasValidTotal !== b.hasValidTotal) return a.hasValidTotal ? -1 : 1;
       if (a.hasValidTotal && b.hasValidTotal) return compareIwfTotalRows(a, b);
       if (a.hasValidSnatch !== b.hasValidSnatch) return a.hasValidSnatch ? -1 : 1;
@@ -422,8 +432,9 @@ function getIwfStandings(athletes) {
 function getIwfRankMaps(athletes) {
   const eligibleAthletes = (athletes || []).filter((athlete) => !athlete.withdrawn);
   const results = eligibleAthletes.map(calculateIwfAthleteResult);
+  const rankableResults = results.filter((row) => !row.outOfCompetition);
   const byClass = new Map();
-  for (const row of results) {
+  for (const row of rankableResults) {
     if (!byClass.has(row.classificationKey)) byClass.set(row.classificationKey, []);
     byClass.get(row.classificationKey).push(row);
   }
@@ -442,7 +453,7 @@ function getIwfRankMaps(athletes) {
 }
 
 function calculateIwfTeamPoints(athletes) {
-  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn);
+  const eligibleAthletes = athletes.filter((athlete) => !athlete.withdrawn && !isOutOfCompetition(athlete));
   const ranks = getIwfRankMaps(eligibleAthletes);
   const rowByAthlete = new Map(ranks.results.map((row) => [row.athlete.id, row]));
   return getTeams()
@@ -592,6 +603,14 @@ function formatIwfStatus(status) {
   if (status === "not-started") return "Nicht angetreten";
   if (status === "not-iwf") return "Keine IWF-Wertung";
   return "-";
+}
+
+function isOutOfCompetition(athlete) {
+  return Boolean(athlete?.outOfCompetition);
+}
+
+function renderAthleteName(athlete) {
+  return `<strong>${escapeHtml(athlete?.name || "-")}</strong>${isOutOfCompetition(athlete) ? ' <span class="ak-badge" title="Au&szlig;er Konkurrenz">AK</span>' : ""}`;
 }
 
 function getTeams() {

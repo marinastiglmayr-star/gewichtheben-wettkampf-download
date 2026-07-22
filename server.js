@@ -2470,6 +2470,7 @@ function normalizeState(input) {
       lotNo: parseInteger(athlete.lotNo) || parseInteger(athlete.startNo) || index + 1,
       bodyweight: parseFloatSafe(athlete.bodyweight),
       entryTotal: parseInteger(athlete.entryTotal),
+      outOfCompetition: Boolean(athlete.outOfCompetition),
       openers,
       next: {
         snatch: parseInteger(athlete.next?.snatch) || openers.snatch || null,
