@@ -2841,8 +2841,8 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   if (!data) return;
 
   const margin = Math.max(14, Math.round(width * 0.024));
-  const boxWidth = data.type === "attempt" ? Math.min(Math.max(Math.round(width * 0.26), 280), 390) : Math.min(Math.max(Math.round(width * 0.24), 240), 360);
-  const boxHeight = data.type === "attempt" ? Math.max(136, Math.round(height * 0.19)) : Math.max(72, Math.round(height * 0.105));
+  const boxWidth = data.type === "attempt" ? Math.min(Math.max(Math.round(width * 0.34), 420), 780) : Math.min(Math.max(Math.round(width * 0.28), 320), 620);
+  const boxHeight = data.type === "attempt" ? Math.min(Math.max(Math.round(height * 0.22), 190), 340) : Math.min(Math.max(Math.round(height * 0.12), 92), 190);
   const x = width - boxWidth - margin;
   const y = height - boxHeight - margin;
   const padding = Math.max(12, Math.round(boxWidth * 0.045));
@@ -2864,14 +2864,14 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   if (data.type === "attempt") {
     const contentWidth = boxWidth - padding * 2;
     const gap = Math.max(10, Math.round(boxWidth * 0.03));
-    const weightSize = Math.max(23, Math.round(boxWidth * 0.082));
+    const weightSize = Math.max(34, Math.round(boxWidth * 0.09));
     context.font = `900 ${weightSize}px Arial, sans-serif`;
     const weightWidth = Math.min(Math.ceil(context.measureText(data.weight).width), Math.round(contentWidth * 0.42));
     const nameWidth = contentWidth - weightWidth - gap;
 
     textY += Math.round(boxHeight * 0.18);
     context.fillStyle = "#ffffff";
-    setFittedCanvasFont(context, data.athlete, nameWidth, Math.max(19, Math.round(boxWidth * 0.062)), 12, 900);
+    setFittedCanvasFont(context, data.athlete, nameWidth, Math.max(30, Math.round(boxWidth * 0.068)), 18, 900);
     context.fillText(String(data.athlete || "-"), x + padding, textY);
 
     context.textAlign = "right";
@@ -2881,17 +2881,17 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
 
     textY += Math.round(boxHeight * 0.17);
     context.fillStyle = "#dce6ef";
-    setFittedCanvasFont(context, `Verein: ${data.club}`, contentWidth, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    setFittedCanvasFont(context, `Verein: ${data.club}`, contentWidth, Math.max(17, Math.round(boxWidth * 0.04)), 11, 800);
     context.fillText(`Verein: ${data.club}`, x + padding, textY);
 
     textY += Math.round(boxHeight * 0.145);
-    setFittedCanvasFont(context, `${data.lift} · ${data.attempt}`, contentWidth, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    setFittedCanvasFont(context, `${data.lift} · ${data.attempt}`, contentWidth, Math.max(17, Math.round(boxWidth * 0.04)), 11, 800);
     context.fillText(`${data.lift} · ${data.attempt}`, x + padding, textY);
 
     textY += Math.round(boxHeight * 0.145);
-    const dotRadius = Math.max(12, Math.round(boxWidth * 0.04));
+    const dotRadius = Math.max(18, Math.round(boxWidth * 0.04));
     const groupWidth = contentWidth - dotRadius * 2 - gap;
-    setFittedCanvasFont(context, data.group, groupWidth, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    setFittedCanvasFont(context, data.group, groupWidth, Math.max(17, Math.round(boxWidth * 0.04)), 11, 800);
     context.fillText(String(data.group || "-"), x + padding, textY);
 
     drawYouTubeDecisionDot(context, x + boxWidth - padding - dotRadius, textY - dotRadius * 0.35, data.decisionStatus, boxWidth);
