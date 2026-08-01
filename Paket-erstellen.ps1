@@ -23,7 +23,14 @@ if (-not (Test-Path $iconPath)) {
 }
 
 $versionFile = Join-Path $root "version.txt"
-$buildVersion = Get-Date -Format "yyyy.M.d.HHmmss"
+$buildTime = Get-Date
+try {
+  $berlinTimeZone = [TimeZoneInfo]::FindSystemTimeZoneById("W. Europe Standard Time")
+  $buildTime = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $berlinTimeZone)
+} catch {
+  $buildTime = Get-Date
+}
+$buildVersion = $buildTime.ToString("yyyy.M.d.HHmmss")
 Set-Content -LiteralPath $versionFile -Value $buildVersion -Encoding UTF8
 
 $rootFiles = @(
