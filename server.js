@@ -1945,6 +1945,9 @@ function friendlyYoutubeError(error) {
   if (normalized.includes("not enabled for live streaming") || normalized.includes("live streaming is not enabled")) {
     return "YouTube Live ist fuer diesen Kanal noch nicht freigeschaltet. Bitte in YouTube Studio Live-Streaming aktivieren. Die Freischaltung kann bis zu 24 Stunden dauern.";
   }
+  if (normalized.includes("invalid transition")) {
+    return "YouTube verarbeitet den Livestream noch. Bitte kurz warten; die Software prueft den Live-Status automatisch weiter.";
+  }
   return message || "Livestream konnte nicht gestartet werden.";
 }
 
@@ -1977,7 +1980,13 @@ async function receiveYoutubeMediaChunk(req, res) {
     if (!youtubeRuntime.transitionStarted) {
       youtubeRuntime.transitionStarted = true;
       transitionYoutubeBroadcastWhenReady().catch((error) => {
-        youtubeRuntime.error = error.message;
+        const message = String(error?.message || error || "");
+        if (message.toLowerCase().includes("invalid transition") && ["live", "liveStarting"].includes(youtubeRuntime.broadcastStatus)) {
+          youtubeRuntime.status = "live";
+          youtubeRuntime.error = "";
+        } else {
+          youtubeRuntime.error = message || "YouTube konnte nicht automatisch auf Live geschaltet werden.";
+        }
         broadcastSession();
       });
     }
@@ -2097,9 +2106,9 @@ async function ensureYoutubeBroadcastPrivacy(broadcastId, privacyStatus) {
 
 function youtubeResolutionPreset(value = "720p") {
   const presets = {
-    "720p": { bitrate: "2500k", maxrate: "2500k", bufsize: "5000k" },
-    "1080p": { bitrate: "4500k", maxrate: "4500k", bufsize: "9000k" },
-    "1440p": { bitrate: "9000k", maxrate: "9000k", bufsize: "18000k" },
+    "720p": { width: 1280, height: 720, bitrate: "2500k", maxrate: "2500k", bufsize: "5000k" },
+    "1080p": { width: 1920, height: 1080, bitrate: "4500k", maxrate: "4500k", bufsize: "9000k" },
+    "1440p": { width: 2560, height: 1440, bitrate: "9000k", maxrate: "9000k", bufsize: "18000k" },
   };
   return presets[value] || presets["720p"];
 }
@@ -2115,6 +2124,8 @@ function spawnYoutubeFfmpeg(ffmpegPath, targetUrl) {
     "webm",
     "-i",
     "pipe:0",
+    "-vf",
+    `scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2`,
     "-c:v",
     "libx264",
     "-preset",
