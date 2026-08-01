@@ -1492,6 +1492,7 @@ function defaultYoutubeRuntime() {
     broadcastId: null,
     streamId: null,
     watchUrl: "",
+    targetUrl: "",
     ffmpeg: null,
     stderr: "",
     chunkCount: 0,
@@ -1910,7 +1911,8 @@ async function startYoutubeLivestream(req, res) {
     youtubeRuntime.broadcastId = broadcast.id;
     youtubeRuntime.streamId = stream.id;
     youtubeRuntime.watchUrl = `https://www.youtube.com/watch?v=${broadcast.id}`;
-    youtubeRuntime.ffmpeg = spawnYoutubeFfmpeg(ffmpegPath, `${String(ingestionAddress).replace(/\/$/, "")}/${streamName}`);
+    youtubeRuntime.targetUrl = `${String(ingestionAddress).replace(/\/$/, "")}/${streamName}`;
+    youtubeRuntime.ffmpeg = spawnYoutubeFfmpeg(ffmpegPath, youtubeRuntime.targetUrl);
     broadcastSession();
     sendJson(res, 200, { ok: true, youtube: getYoutubePayload() });
   } catch (error) {
@@ -1941,6 +1943,21 @@ function friendlyYoutubeError(error) {
 
 async function receiveYoutubeMediaChunk(req, res) {
   const chunk = await readBinary(req, 25_000_000);
+  if (
+    (!youtubeRuntime.ffmpeg || !youtubeRuntime.ffmpeg.stdin || youtubeRuntime.ffmpeg.stdin.destroyed) &&
+    ["starting", "live", "error"].includes(youtubeRuntime.status) &&
+    youtubeRuntime.targetUrl
+  ) {
+    const ffmpegPath = resolveFfmpegPath();
+    if (ffmpegPath) {
+      youtubeRuntime.ffmpeg = spawnYoutubeFfmpeg(ffmpegPath, youtubeRuntime.targetUrl);
+      youtubeRuntime.status = youtubeRuntime.status === "live" ? "live" : "starting";
+      youtubeRuntime.error = "";
+      youtubeRuntime.stderr = "";
+      youtubeRuntime.transitionStarted = false;
+      broadcastSession();
+    }
+  }
   if (!youtubeRuntime.ffmpeg || !youtubeRuntime.ffmpeg.stdin || youtubeRuntime.ffmpeg.stdin.destroyed) {
     const detail = youtubeRuntime.stderr ? ` ${youtubeRuntime.stderr}` : "";
     sendJson(res, 409, { error: `Livestream-Encoder ist nicht bereit.${detail}`.trim() });

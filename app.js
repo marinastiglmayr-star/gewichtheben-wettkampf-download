@@ -227,6 +227,10 @@ let youtubeUploadChain = Promise.resolve();
 let youtubeDevicePermissionRequested = false;
 let youtubeSaveTimer = null;
 let youtubePreviewStartTimer = null;
+let youtubeMediaWatchdogTimer = null;
+let youtubeLastChunkSentAt = 0;
+let youtubeRestartingMediaCapture = false;
+let youtubeSuppressRecorderRestart = false;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -2615,16 +2619,25 @@ async function startYouTubeMediaCapture(settings = {}) {
   const mimeType = youtubeRecorderMimeType();
   youtubeRecorder = new MediaRecorder(youtubeMediaStream, mimeType ? { mimeType } : undefined);
   youtubeUploadChain = Promise.resolve();
+  youtubeLastChunkSentAt = Date.now();
   youtubeRecorder.ondataavailable = (event) => {
     if (!event.data || event.data.size === 0) return;
+    youtubeLastChunkSentAt = Date.now();
     youtubeUploadChain = youtubeUploadChain
       .then(() => postYouTubeMediaChunk(event.data))
       .catch((error) => {
         console.warn(error);
+        showToast(error.message || "Livestream-Daten konnten nicht gesendet werden.");
       });
   };
   youtubeRecorder.onerror = () => showToast("Livestream-Aufnahme meldet einen Fehler.");
+  youtubeRecorder.onstop = () => {
+    if (!youtubeSuppressRecorderRestart && ["starting", "live"].includes(youtubePayload().status)) {
+      scheduleYouTubeMediaCaptureRestart("Livestream-Aufnahme wurde neu gestartet.");
+    }
+  };
   youtubeRecorder.start(1000);
+  startYouTubeMediaWatchdog(settings);
 }
 
 async function createYouTubeOverlayMediaStream(sourceStream) {
@@ -2960,6 +2973,42 @@ function youtubeRecorderMimeType() {
   return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || "";
 }
 
+function startYouTubeMediaWatchdog(settings = {}) {
+  window.clearInterval(youtubeMediaWatchdogTimer);
+  youtubeMediaWatchdogTimer = window.setInterval(() => {
+    const status = youtubePayload().status;
+    if (!["starting", "live"].includes(status)) return;
+    const recorderStopped = !youtubeRecorder || youtubeRecorder.state === "inactive";
+    const stale = youtubeLastChunkSentAt && Date.now() - youtubeLastChunkSentAt > 7000;
+    if (recorderStopped || stale) {
+      scheduleYouTubeMediaCaptureRestart("Livestream-Aufnahme wurde automatisch neu gestartet.");
+    }
+  }, 3500);
+  youtubeMediaWatchdogTimer.settings = settings;
+}
+
+function stopYouTubeMediaWatchdog() {
+  window.clearInterval(youtubeMediaWatchdogTimer);
+  youtubeMediaWatchdogTimer = null;
+}
+
+function scheduleYouTubeMediaCaptureRestart(message) {
+  if (youtubeRestartingMediaCapture) return;
+  youtubeRestartingMediaCapture = true;
+  const settings = youtubePayload().settings || youtubeMediaWatchdogTimer?.settings || {};
+  window.setTimeout(async () => {
+    try {
+      stopYouTubeMediaCapture();
+      await startYouTubeMediaCapture(settings);
+      showToast(message);
+    } catch (error) {
+      showToast(error.message || "Livestream-Aufnahme konnte nicht neu gestartet werden.");
+    } finally {
+      youtubeRestartingMediaCapture = false;
+    }
+  }, 250);
+}
+
 async function postYouTubeMediaChunk(blob) {
   const response = await fetch("/api/youtube/media-chunk", {
     method: "POST",
@@ -2973,6 +3022,8 @@ async function postYouTubeMediaChunk(blob) {
 }
 
 function stopYouTubeMediaCapture() {
+  stopYouTubeMediaWatchdog();
+  youtubeSuppressRecorderRestart = true;
   if (youtubeRecorder && youtubeRecorder.state !== "inactive") {
     try {
       youtubeRecorder.stop();
@@ -2989,9 +3040,13 @@ function stopYouTubeMediaCapture() {
   tracks.forEach((track) => track.stop());
   youtubeMediaStream = null;
   youtubeSourceMediaStream = null;
+  youtubeLastChunkSentAt = 0;
   if (els.youtubePreview) els.youtubePreview.srcObject = null;
   renderTopCameraPreview();
   setYouTubePreviewState(false);
+  window.setTimeout(() => {
+    youtubeSuppressRecorderRestart = false;
+  }, 500);
 }
 
 async function endYouTubeLiveStream() {
