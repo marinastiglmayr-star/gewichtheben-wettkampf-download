@@ -2529,9 +2529,10 @@ function youtubeMediaConstraints(settings = collectYouTubeSettingsFromForm(), op
 
 function youtubeResolutionPreset(value = "720p") {
   const presets = {
-    "720p": { width: 1280, height: 720, bitrate: "2500k" },
-    "1080p": { width: 1920, height: 1080, bitrate: "4500k" },
-    "1440p": { width: 2560, height: 1440, bitrate: "9000k" },
+    "720p": { width: 1280, height: 720, bitrate: "4500k" },
+    "1080p": { width: 1920, height: 1080, bitrate: "10000k" },
+    "1440p": { width: 2560, height: 1440, bitrate: "15000k" },
+    "2160p": { width: 3840, height: 2160, bitrate: "30000k" },
   };
   return presets[value] || presets["720p"];
 }

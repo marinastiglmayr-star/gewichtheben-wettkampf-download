@@ -1524,7 +1524,7 @@ function normalizeYoutubeConfig(input = {}) {
     ? input.privacyStatus
     : base.privacyStatus;
   const titleTemplate = String(input.titleTemplate || base.titleTemplate).trim();
-  const streamResolution = ["720p", "1080p", "1440p"].includes(input.streamResolution)
+  const streamResolution = ["720p", "1080p", "1440p", "2160p"].includes(input.streamResolution)
     ? input.streamResolution
     : base.streamResolution;
   return {
@@ -2106,9 +2106,10 @@ async function ensureYoutubeBroadcastPrivacy(broadcastId, privacyStatus) {
 
 function youtubeResolutionPreset(value = "720p") {
   const presets = {
-    "720p": { width: 1280, height: 720, bitrate: "2500k", maxrate: "2500k", bufsize: "5000k" },
-    "1080p": { width: 1920, height: 1080, bitrate: "4500k", maxrate: "4500k", bufsize: "9000k" },
-    "1440p": { width: 2560, height: 1440, bitrate: "9000k", maxrate: "9000k", bufsize: "18000k" },
+    "720p": { width: 1280, height: 720, bitrate: "4500k", maxrate: "4500k", bufsize: "9000k" },
+    "1080p": { width: 1920, height: 1080, bitrate: "10000k", maxrate: "10000k", bufsize: "20000k" },
+    "1440p": { width: 2560, height: 1440, bitrate: "15000k", maxrate: "15000k", bufsize: "30000k" },
+    "2160p": { width: 3840, height: 2160, bitrate: "30000k", maxrate: "30000k", bufsize: "60000k" },
   };
   return presets[value] || presets["720p"];
 }
