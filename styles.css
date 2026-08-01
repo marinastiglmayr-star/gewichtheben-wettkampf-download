@@ -161,9 +161,9 @@ button:disabled {
 
 .top-camera-preview {
   position: relative;
-  width: 96px;
-  height: 54px;
-  flex: 0 0 96px;
+  width: clamp(140px, 12vw, 220px);
+  height: clamp(78px, 6.75vw, 124px);
+  flex: 0 0 clamp(140px, 12vw, 220px);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;

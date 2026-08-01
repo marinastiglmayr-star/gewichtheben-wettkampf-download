@@ -2005,9 +2005,12 @@ async function transitionYoutubeBroadcastWhenReady() {
             broadcastStatus: "live",
           });
         } catch (transitionError) {
-          youtubeRuntime.error = transitionError.message || error.message;
+          const transitionMessage = transitionError.message || error.message || "";
+          youtubeRuntime.error = transitionMessage.toLowerCase().includes("invalid transition")
+            ? "YouTube verarbeitet den Stream noch. Der Live-Status wird automatisch weiter geprueft."
+            : transitionMessage;
           broadcastSession();
-          return;
+          continue;
         }
       }
       youtubeRuntime.status = "live";
