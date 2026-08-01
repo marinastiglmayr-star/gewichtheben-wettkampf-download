@@ -250,11 +250,15 @@
                       <option value="unlisted">Nicht gelistet</option>
                     </select>
                   </label>
-                  <label class="wide">
-                    <span>Name des YouTube-Videos</span>
-                    <input id="youtube-title" type="text" placeholder="{event}" />
+                  <label class="wide youtube-resolution-label">
+                    <span>Stream-Aufloesung</span>
+                    <select id="youtube-resolution">
+                      <option value="720p">HD 720p</option>
+                      <option value="1080p">Full HD 1080p</option>
+                      <option value="1440p">QHD 1440p</option>
+                    </select>
+                    <small class="field-hint">Der YouTube-Name wird automatisch aus dem Wettkampfnamen gebildet.</small>
                     <small class="field-hint">{event} wird automatisch durch den Wettkampfnamen ersetzt. Standard ist exakt der Name aus „Wettkampf“.</small>
-                    <small id="youtube-title-preview" class="field-hint youtube-title-preview">Aktueller YouTube-Name: Gewichtheben</small>
                   </label>
                   <label class="wide">
                     <span>FFmpeg-Pfad (optional)</span>

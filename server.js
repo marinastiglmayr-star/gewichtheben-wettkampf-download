@@ -1471,6 +1471,7 @@ function defaultYoutubeConfig() {
     cameraLabel: "",
     microphoneDeviceId: "",
     microphoneLabel: "",
+    streamResolution: "720p",
     ffmpegPath: "",
   };
 }
@@ -1523,6 +1524,9 @@ function normalizeYoutubeConfig(input = {}) {
     ? input.privacyStatus
     : base.privacyStatus;
   const titleTemplate = String(input.titleTemplate || base.titleTemplate).trim();
+  const streamResolution = ["720p", "1080p", "1440p"].includes(input.streamResolution)
+    ? input.streamResolution
+    : base.streamResolution;
   return {
     ...base,
     enabled: Boolean(input.enabled),
@@ -1537,6 +1541,7 @@ function normalizeYoutubeConfig(input = {}) {
     cameraLabel: String(input.cameraLabel || ""),
     microphoneDeviceId: String(input.microphoneDeviceId || ""),
     microphoneLabel: String(input.microphoneLabel || ""),
+    streamResolution,
     ffmpegPath: String(input.ffmpegPath || "").trim(),
   };
 }
@@ -1564,6 +1569,7 @@ function getYoutubePayload() {
       cameraLabel: youtubeConfig.cameraLabel,
       microphoneDeviceId: youtubeConfig.microphoneDeviceId,
       microphoneLabel: youtubeConfig.microphoneLabel,
+      streamResolution: youtubeConfig.streamResolution,
       ffmpegPath: youtubeConfig.ffmpegPath,
     },
   };
@@ -1584,6 +1590,7 @@ async function updateYoutubeSettings(req, res) {
     cameraLabel: body.cameraLabel,
     microphoneDeviceId: body.microphoneDeviceId,
     microphoneLabel: body.microphoneLabel,
+    streamResolution: body.streamResolution,
     ffmpegPath: body.ffmpegPath,
   });
   if (previousClientId && next.clientId && previousClientId !== next.clientId) {
@@ -1896,7 +1903,7 @@ async function startYoutubeLivestream(req, res) {
         cdn: {
           frameRate: "30fps",
           ingestionType: "rtmp",
-          resolution: "720p",
+          resolution: youtubeConfig.streamResolution || "720p",
         },
       },
     );
@@ -2088,7 +2095,17 @@ async function ensureYoutubeBroadcastPrivacy(broadcastId, privacyStatus) {
   }
 }
 
+function youtubeResolutionPreset(value = "720p") {
+  const presets = {
+    "720p": { bitrate: "2500k", maxrate: "2500k", bufsize: "5000k" },
+    "1080p": { bitrate: "4500k", maxrate: "4500k", bufsize: "9000k" },
+    "1440p": { bitrate: "9000k", maxrate: "9000k", bufsize: "18000k" },
+  };
+  return presets[value] || presets["720p"];
+}
+
 function spawnYoutubeFfmpeg(ffmpegPath, targetUrl) {
+  const preset = youtubeResolutionPreset(youtubeConfig.streamResolution);
   const args = [
     "-hide_banner",
     "-loglevel",
@@ -2111,11 +2128,11 @@ function spawnYoutubeFfmpeg(ffmpegPath, targetUrl) {
     "-g",
     "60",
     "-b:v",
-    "2500k",
+    preset.bitrate,
     "-maxrate",
-    "2500k",
+    preset.maxrate,
     "-bufsize",
-    "5000k",
+    preset.bufsize,
     "-c:a",
     "aac",
     "-ar",

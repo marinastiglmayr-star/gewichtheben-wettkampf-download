@@ -730,6 +730,10 @@ h3 {
   grid-column: span 2;
 }
 
+.youtube-resolution-label .field-hint + .field-hint {
+  display: none;
+}
+
 .youtube-actions {
   display: flex;
   grid-column: 1 / -1;

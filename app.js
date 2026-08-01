@@ -335,6 +335,7 @@ function cacheElements() {
     youtubePrivacy: $("#youtube-privacy"),
     youtubeTitle: $("#youtube-title"),
     youtubeTitlePreview: $("#youtube-title-preview"),
+    youtubeResolution: $("#youtube-resolution"),
     youtubeFfmpegPath: $("#youtube-ffmpeg-path"),
     youtubeCamera: $("#youtube-camera"),
     youtubeMicrophone: $("#youtube-microphone"),
@@ -2274,7 +2275,8 @@ function renderYouTubeSettings() {
     els.youtubeClientId.value = settings.clientId || "";
     els.youtubeClientSecret.value = "";
     els.youtubePrivacy.value = settings.privacyStatus || "unlisted";
-    els.youtubeTitle.value = settings.titleTemplate || "{event}";
+    if (els.youtubeTitle) els.youtubeTitle.value = settings.titleTemplate || "{event}";
+    if (els.youtubeResolution) els.youtubeResolution.value = settings.streamResolution || "720p";
     els.youtubeFfmpegPath.value = settings.ffmpegPath || "";
     renderYouTubeDeviceSelects(settings);
   }
@@ -2392,6 +2394,7 @@ function collectYouTubeSettingsFromForm() {
     clientSecret: els.youtubeClientSecret?.value || "",
     privacyStatus: els.youtubePrivacy?.value || "unlisted",
     titleTemplate: els.youtubeTitle?.value || "{event}",
+    streamResolution: els.youtubeResolution?.value || "720p",
     ffmpegPath: els.youtubeFfmpegPath?.value || "",
     cameraDeviceId: els.youtubeCamera?.value || "",
     cameraLabel: cameraOption && cameraOption.value ? cameraOption.textContent : "",
@@ -2516,9 +2519,21 @@ async function refreshYouTubeDevices(options = {}) {
 }
 
 function youtubeMediaConstraints(settings = collectYouTubeSettingsFromForm(), options = {}) {
-  const video = settings.cameraDeviceId ? { deviceId: { exact: settings.cameraDeviceId } } : true;
+  const preset = youtubeResolutionPreset(settings.streamResolution);
+  const video = settings.cameraDeviceId
+    ? { deviceId: { exact: settings.cameraDeviceId }, width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: 30, max: 30 } }
+    : { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: 30, max: 30 } };
   const audio = options.videoOnly ? false : settings.microphoneDeviceId ? { deviceId: { exact: settings.microphoneDeviceId } } : true;
   return { video, audio };
+}
+
+function youtubeResolutionPreset(value = "720p") {
+  const presets = {
+    "720p": { width: 1280, height: 720, bitrate: "2500k" },
+    "1080p": { width: 1920, height: 1080, bitrate: "4500k" },
+    "1440p": { width: 2560, height: 1440, bitrate: "9000k" },
+  };
+  return presets[value] || presets["720p"];
 }
 
 function scheduleYouTubePreviewStart() {
@@ -2653,8 +2668,9 @@ async function createYouTubeOverlayMediaStream(sourceStream) {
     await waitForYouTubeVideoFrame(youtubeOverlayVideo);
 
     const trackSettings = videoTrack.getSettings?.() || {};
-    const width = Math.max(320, Math.round(Number(trackSettings.width) || youtubeOverlayVideo.videoWidth || 1280));
-    const height = Math.max(180, Math.round(Number(trackSettings.height) || youtubeOverlayVideo.videoHeight || 720));
+    const preset = youtubeResolutionPreset((youtubePayload().settings || {}).streamResolution);
+    const width = preset.width;
+    const height = preset.height;
     const frameRate = Math.min(30, Math.max(10, Math.round(Number(trackSettings.frameRate) || 30)));
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -2705,7 +2721,6 @@ function drawYouTubeVideoFrame(context, video, width, height) {
   if (video?.readyState >= 2) {
     context.drawImage(video, 0, 0, width, height);
   }
-  drawYouTubeEventTitleOverlay(context, width, height);
   drawYouTubeStreamOverlay(context, width, height, getYouTubeStreamOverlayData());
 }
 
@@ -2825,8 +2840,8 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   if (!data) return;
 
   const margin = Math.max(14, Math.round(width * 0.024));
-  const boxWidth = data.type === "attempt" ? Math.min(Math.max(Math.round(width * 0.32), 310), 460) : Math.min(Math.max(Math.round(width * 0.28), 260), 430);
-  const boxHeight = data.type === "attempt" ? Math.max(168, Math.round(height * 0.24)) : Math.max(82, Math.round(height * 0.12));
+  const boxWidth = data.type === "attempt" ? Math.min(Math.max(Math.round(width * 0.26), 280), 390) : Math.min(Math.max(Math.round(width * 0.24), 240), 360);
+  const boxHeight = data.type === "attempt" ? Math.max(136, Math.round(height * 0.19)) : Math.max(72, Math.round(height * 0.105));
   const x = width - boxWidth - margin;
   const y = height - boxHeight - margin;
   const padding = Math.max(12, Math.round(boxWidth * 0.045));
@@ -2848,14 +2863,14 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   if (data.type === "attempt") {
     const contentWidth = boxWidth - padding * 2;
     const gap = Math.max(10, Math.round(boxWidth * 0.03));
-    const weightSize = Math.max(25, Math.round(boxWidth * 0.078));
+    const weightSize = Math.max(23, Math.round(boxWidth * 0.082));
     context.font = `900 ${weightSize}px Arial, sans-serif`;
     const weightWidth = Math.min(Math.ceil(context.measureText(data.weight).width), Math.round(contentWidth * 0.42));
     const nameWidth = contentWidth - weightWidth - gap;
 
     textY += Math.round(boxHeight * 0.18);
     context.fillStyle = "#ffffff";
-    setFittedCanvasFont(context, data.athlete, nameWidth, Math.max(21, Math.round(boxWidth * 0.067)), 12, 900);
+    setFittedCanvasFont(context, data.athlete, nameWidth, Math.max(19, Math.round(boxWidth * 0.062)), 12, 900);
     context.fillText(String(data.athlete || "-"), x + padding, textY);
 
     context.textAlign = "right";
