@@ -2826,7 +2826,7 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
 
   const margin = Math.max(14, Math.round(width * 0.024));
   const boxWidth = data.type === "attempt" ? Math.min(Math.max(Math.round(width * 0.32), 310), 460) : Math.min(Math.max(Math.round(width * 0.28), 260), 430);
-  const boxHeight = data.type === "attempt" ? Math.max(154, Math.round(height * 0.225)) : Math.max(82, Math.round(height * 0.12));
+  const boxHeight = data.type === "attempt" ? Math.max(168, Math.round(height * 0.24)) : Math.max(82, Math.round(height * 0.12));
   const x = width - boxWidth - margin;
   const y = height - boxHeight - margin;
   const padding = Math.max(12, Math.round(boxWidth * 0.045));
@@ -2846,30 +2846,39 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   context.fillText(String(data.eyebrow || "").toUpperCase(), x + padding, textY);
 
   if (data.type === "attempt") {
-    textY += Math.round(boxHeight * 0.19);
+    const contentWidth = boxWidth - padding * 2;
+    const gap = Math.max(10, Math.round(boxWidth * 0.03));
+    const weightSize = Math.max(25, Math.round(boxWidth * 0.078));
+    context.font = `900 ${weightSize}px Arial, sans-serif`;
+    const weightWidth = Math.min(Math.ceil(context.measureText(data.weight).width), Math.round(contentWidth * 0.42));
+    const nameWidth = contentWidth - weightWidth - gap;
+
+    textY += Math.round(boxHeight * 0.18);
     context.fillStyle = "#ffffff";
-    setFittedCanvasFont(context, data.athlete, boxWidth - padding * 2, Math.max(20, Math.round(boxWidth * 0.064)), 13, 900);
+    setFittedCanvasFont(context, data.athlete, nameWidth, Math.max(21, Math.round(boxWidth * 0.067)), 12, 900);
     context.fillText(String(data.athlete || "-"), x + padding, textY);
 
-    textY += Math.round(boxHeight * 0.16);
+    context.textAlign = "right";
+    setFittedCanvasFont(context, data.weight, weightWidth, weightSize, 16, 900);
+    context.fillText(String(data.weight || "-"), x + boxWidth - padding, textY);
+    context.textAlign = "left";
+
+    textY += Math.round(boxHeight * 0.17);
     context.fillStyle = "#dce6ef";
-    setFittedCanvasFont(context, `Verein: ${data.club}`, boxWidth - padding * 2, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    setFittedCanvasFont(context, `Verein: ${data.club}`, contentWidth, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
     context.fillText(`Verein: ${data.club}`, x + padding, textY);
 
-    textY += Math.round(boxHeight * 0.14);
-    setFittedCanvasFont(context, `${data.lift} · ${data.attempt}`, boxWidth - padding * 2, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    textY += Math.round(boxHeight * 0.145);
+    setFittedCanvasFont(context, `${data.lift} · ${data.attempt}`, contentWidth, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
     context.fillText(`${data.lift} · ${data.attempt}`, x + padding, textY);
 
-    textY += Math.round(boxHeight * 0.14);
-    setFittedCanvasFont(context, data.group, boxWidth - padding * 2, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    textY += Math.round(boxHeight * 0.145);
+    const dotRadius = Math.max(12, Math.round(boxWidth * 0.04));
+    const groupWidth = contentWidth - dotRadius * 2 - gap;
+    setFittedCanvasFont(context, data.group, groupWidth, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
     context.fillText(String(data.group || "-"), x + padding, textY);
 
-    const weightY = y + boxHeight - padding - 4;
-    context.fillStyle = "#ffffff";
-    setFittedCanvasFont(context, data.weight, Math.round(boxWidth * 0.55), Math.max(20, Math.round(boxWidth * 0.064)), 13, 900);
-    context.fillText(data.weight, x + padding, weightY);
-
-    drawYouTubeDecisionDot(context, x + boxWidth - padding - Math.max(18, Math.round(boxWidth * 0.055)), weightY - Math.max(8, Math.round(boxWidth * 0.025)), data.decisionStatus, boxWidth);
+    drawYouTubeDecisionDot(context, x + boxWidth - padding - dotRadius, textY - dotRadius * 0.35, data.decisionStatus, boxWidth);
   } else {
     textY += Math.round(boxHeight * 0.38);
     context.fillStyle = "#ffffff";

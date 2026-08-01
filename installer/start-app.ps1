@@ -354,7 +354,11 @@ function Copy-UpdatedFiles {
     foreach ($asset in @("app-icon.ico", "app-icon.png", "wappen.png", "iwf-logo.svg")) {
       $source = Join-Path $assetSource $asset
       if (Test-Path $source) {
-        Copy-Item -LiteralPath $source -Destination (Join-Path $appDir "assets\$asset") -Force
+        try {
+          Copy-Item -LiteralPath $source -Destination (Join-Path $appDir "assets\$asset") -Force -ErrorAction Stop
+        } catch {
+          Write-LauncherLog "Optionales Asset konnte nicht aktualisiert werden: $asset - $($_.Exception.Message)"
+        }
       }
     }
   }
