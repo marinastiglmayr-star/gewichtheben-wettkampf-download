@@ -2755,23 +2755,24 @@ function getYouTubeStreamOverlayData() {
   const key = attemptKey(current);
   const liveVotes = state.meta.liveVotes?.key === key ? state.meta.liveVotes.votes || [] : [];
   const activeVotes = getRefereeSlots().map((slot) => (slot.voteIndex in liveVotes ? liveVotes[slot.voteIndex] : null));
-  const whiteVotes = activeVotes.filter(Boolean).length;
-  const redVotes = activeVotes.filter((vote) => vote === false).length;
   const openVotes = activeVotes.filter((vote) => vote === null).length;
-  const decision =
+  const decisionStatus =
     openVotes > 0
-      ? `${whiteVotes} wei\u00df \u00b7 ${redVotes} rot \u00b7 ${openVotes} offen`
-      : whiteVotes >= getRequiredGoodVotes()
-        ? `${whiteVotes} wei\u00df \u00b7 ${redVotes} rot \u00b7 g\u00fcltig`
-        : `${whiteVotes} wei\u00df \u00b7 ${redVotes} rot \u00b7 ung\u00fcltig`;
+      ? "open"
+      : activeVotes.filter(Boolean).length >= getRequiredGoodVotes()
+        ? "good"
+        : "bad";
 
   return {
     type: "attempt",
     eyebrow: "Aktueller Versuch",
     athlete: current.athlete.name || "-",
-    detail: `${youtubeLiftLabel(current.lift)} \u00b7 Versuch ${current.attemptNo} \u00b7 Gruppe ${groupNameById(current.athlete.groupId)}`,
+    club: teamNameById(current.athlete.teamId) || current.athlete.team || current.athlete.verein || "-",
+    lift: youtubeLiftLabel(current.lift),
+    attempt: `Versuch ${current.attemptNo}`,
+    group: `Gruppe ${groupNameById(current.athlete.groupId)}`,
     weight: `${formatScore(current.weight)} kg`,
-    result: `KR: ${decision}`,
+    decisionStatus,
   };
 }
 
@@ -2811,8 +2812,8 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   if (!data) return;
 
   const margin = Math.max(14, Math.round(width * 0.024));
-  const boxWidth = Math.min(Math.max(Math.round(width * 0.28), 260), 430);
-  const boxHeight = data.type === "attempt" ? Math.max(112, Math.round(height * 0.17)) : Math.max(82, Math.round(height * 0.12));
+  const boxWidth = data.type === "attempt" ? Math.min(Math.max(Math.round(width * 0.32), 310), 460) : Math.min(Math.max(Math.round(width * 0.28), 260), 430);
+  const boxHeight = data.type === "attempt" ? Math.max(154, Math.round(height * 0.225)) : Math.max(82, Math.round(height * 0.12));
   const x = width - boxWidth - margin;
   const y = height - boxHeight - margin;
   const padding = Math.max(12, Math.round(boxWidth * 0.045));
@@ -2832,25 +2833,30 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
   context.fillText(String(data.eyebrow || "").toUpperCase(), x + padding, textY);
 
   if (data.type === "attempt") {
-    textY += Math.round(boxHeight * 0.27);
+    textY += Math.round(boxHeight * 0.19);
     context.fillStyle = "#ffffff";
-    context.font = `900 ${Math.max(22, Math.round(boxWidth * 0.085))}px Arial, sans-serif`;
-    drawTruncatedCanvasText(context, data.athlete, x + padding, textY, boxWidth - padding * 2);
+    setFittedCanvasFont(context, data.athlete, boxWidth - padding * 2, Math.max(20, Math.round(boxWidth * 0.064)), 13, 900);
+    context.fillText(String(data.athlete || "-"), x + padding, textY);
 
-    textY += Math.round(boxHeight * 0.24);
+    textY += Math.round(boxHeight * 0.16);
     context.fillStyle = "#dce6ef";
-    context.font = `800 ${Math.max(13, Math.round(boxWidth * 0.045))}px Arial, sans-serif`;
-    drawTruncatedCanvasText(context, data.detail, x + padding, textY, boxWidth - padding * 2);
+    setFittedCanvasFont(context, `Verein: ${data.club}`, boxWidth - padding * 2, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    context.fillText(`Verein: ${data.club}`, x + padding, textY);
 
-    const weightY = y + boxHeight - padding - 10;
+    textY += Math.round(boxHeight * 0.14);
+    setFittedCanvasFont(context, `${data.lift} · ${data.attempt}`, boxWidth - padding * 2, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    context.fillText(`${data.lift} · ${data.attempt}`, x + padding, textY);
+
+    textY += Math.round(boxHeight * 0.14);
+    setFittedCanvasFont(context, data.group, boxWidth - padding * 2, Math.max(11, Math.round(boxWidth * 0.033)), 8, 800);
+    context.fillText(String(data.group || "-"), x + padding, textY);
+
+    const weightY = y + boxHeight - padding - 4;
     context.fillStyle = "#ffffff";
-    context.font = `900 ${Math.max(22, Math.round(boxWidth * 0.09))}px Arial, sans-serif`;
+    setFittedCanvasFont(context, data.weight, Math.round(boxWidth * 0.55), Math.max(20, Math.round(boxWidth * 0.064)), 13, 900);
     context.fillText(data.weight, x + padding, weightY);
 
-    context.fillStyle = "#c6d2dc";
-    context.font = `800 ${Math.max(10, Math.round(boxWidth * 0.034))}px Arial, sans-serif`;
-    context.textAlign = "right";
-    drawTruncatedCanvasText(context, data.result, x + boxWidth - padding, weightY, Math.round(boxWidth * 0.48), "right");
+    drawYouTubeDecisionDot(context, x + boxWidth - padding - Math.max(18, Math.round(boxWidth * 0.055)), weightY - Math.max(8, Math.round(boxWidth * 0.025)), data.decisionStatus, boxWidth);
   } else {
     textY += Math.round(boxHeight * 0.38);
     context.fillStyle = "#ffffff";
@@ -2878,6 +2884,38 @@ function drawCanvasRoundRect(context, x, y, width, height, radius) {
   context.lineTo(x, y + r);
   context.quadraticCurveTo(x, y, x + r, y);
   context.closePath();
+}
+
+function drawYouTubeDecisionDot(context, centerX, centerY, status, boxWidth) {
+  const radius = Math.max(12, Math.round(boxWidth * 0.04));
+  context.save();
+  context.beginPath();
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  if (status === "good") {
+    context.fillStyle = "#f8fbff";
+    context.fill();
+  } else if (status === "bad") {
+    context.fillStyle = "#d92323";
+    context.fill();
+  } else {
+    context.fillStyle = "rgba(255, 255, 255, 0.08)";
+    context.fill();
+  }
+  context.strokeStyle = status === "open" ? "rgba(255, 255, 255, 0.55)" : "rgba(255, 255, 255, 0.86)";
+  context.lineWidth = Math.max(2, Math.round(boxWidth / 160));
+  context.stroke();
+  context.restore();
+}
+
+function setFittedCanvasFont(context, text, maxWidth, preferredSize, minSize, weight = 800) {
+  const value = String(text || "");
+  let size = Math.max(minSize, preferredSize);
+  do {
+    context.font = `${weight} ${size}px Arial, sans-serif`;
+    if (context.measureText(value).width <= maxWidth || size <= minSize) return size;
+    size -= 1;
+  } while (size >= minSize);
+  return size;
 }
 
 function drawTruncatedCanvasText(context, text, x, y, maxWidth, align = "left") {
