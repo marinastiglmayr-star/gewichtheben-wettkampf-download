@@ -1654,6 +1654,7 @@ function getYouTubeUiStatus() {
   const ffmpegMissing = youtube.connected && youtube.ffmpegFound === false;
   const ready = youtube.connected && !ffmpegMissing && !["error", "starting", "live", "stopping", "paused"].includes(youtube.status);
   const liveNotEnabled = isYouTubeLiveNotEnabledError(youtube.error);
+  const apiDisabled = isYouTubeApiDisabledError(youtube.error);
   const map = {
     idle: ffmpegMissing ? { label: "FFmpeg fehlt", tone: "danger" } : { label: "Bereit", tone: "ok" },
     starting: { label: "Startet", tone: "warning" },
@@ -1661,16 +1662,26 @@ function getYouTubeUiStatus() {
     paused: { label: "Pausiert", tone: "paused" },
     stopping: { label: "Beendet", tone: "warning" },
     complete: { label: "Bereit", tone: "ok" },
-    error: { label: liveNotEnabled ? "Live nicht freigeschaltet" : "Fehler", tone: "danger" },
+    error: { label: apiDisabled ? "YouTube API fehlt" : liveNotEnabled ? "Live nicht freigeschaltet" : "Fehler", tone: "danger" },
   };
   if (!youtube.connected) return { label: "nicht verbunden", tone: "neutral", ffmpegMissing, ready, youtube };
   const status = map[youtube.status] || { label: youtube.status || "Status offen", tone: "neutral" };
-  return { ...status, ffmpegMissing, ready, youtube, liveNotEnabled };
+  return { ...status, ffmpegMissing, ready, youtube, liveNotEnabled, apiDisabled };
 }
 
 function isYouTubeLiveNotEnabledError(message) {
   const normalized = String(message || "").toLowerCase();
   return normalized.includes("not enabled for live streaming") || normalized.includes("noch nicht freigeschaltet");
+}
+
+function isYouTubeApiDisabledError(message) {
+  const normalized = String(message || "").toLowerCase();
+  return (
+    normalized.includes("youtube data api v3") ||
+    normalized.includes("youtube.googleapis.com") ||
+    normalized.includes("accessnotconfigured") ||
+    normalized.includes("api im google-cloud-projekt aktivieren")
+  );
 }
 
 function renderStreamTopStatus() {

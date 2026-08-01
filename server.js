@@ -1910,6 +1910,14 @@ async function startYoutubeLivestream(req, res) {
 function friendlyYoutubeError(error) {
   const message = String(error?.message || error || "").trim();
   const normalized = message.toLowerCase();
+  if (
+    normalized.includes("youtube data api v3 has not been used") ||
+    normalized.includes("youtube.googleapis.com") ||
+    normalized.includes("accessnotconfigured") ||
+    (normalized.includes("api") && normalized.includes("disabled"))
+  ) {
+    return "YouTube Data API v3 ist in diesem Google-Cloud-Projekt noch nicht aktiviert. Bitte die API im Google-Cloud-Projekt aktivieren und danach den Stream erneut starten.";
+  }
   if (normalized.includes("not enabled for live streaming") || normalized.includes("live streaming is not enabled")) {
     return "YouTube Live ist fuer diesen Kanal noch nicht freigeschaltet. Bitte in YouTube Studio Live-Streaming aktivieren. Die Freischaltung kann bis zu 24 Stunden dauern.";
   }
