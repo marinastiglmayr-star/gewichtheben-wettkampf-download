@@ -1512,7 +1512,7 @@ async function persistYoutubeConfig() {
 
 function normalizeYoutubeConfig(input = {}) {
   const base = defaultYoutubeConfig();
-  const privacy = ["public", "unlisted", "private"].includes(input.privacyStatus)
+  const privacy = ["public", "unlisted"].includes(input.privacyStatus)
     ? input.privacyStatus
     : base.privacyStatus;
   return {
@@ -1559,10 +1559,11 @@ function getYoutubePayload() {
 async function updateYoutubeSettings(req, res) {
   const body = await readJson(req);
   const previousClientId = youtubeConfig.clientId;
+  const nextClientId = body.clientId ? String(body.clientId) : youtubeConfig.clientId;
   const next = normalizeYoutubeConfig({
     ...youtubeConfig,
     enabled: body.enabled,
-    clientId: body.clientId,
+    clientId: nextClientId,
     clientSecret: body.clientSecret ? String(body.clientSecret) : youtubeConfig.clientSecret,
     privacyStatus: body.privacyStatus,
     titleTemplate: body.titleTemplate,
@@ -1572,7 +1573,7 @@ async function updateYoutubeSettings(req, res) {
     microphoneLabel: body.microphoneLabel,
     ffmpegPath: body.ffmpegPath,
   });
-  if (previousClientId && previousClientId !== next.clientId) {
+  if (previousClientId && next.clientId && previousClientId !== next.clientId) {
     next.refreshToken = "";
     next.accessToken = "";
     next.tokenExpiresAt = 0;
@@ -1927,7 +1928,8 @@ function friendlyYoutubeError(error) {
 async function receiveYoutubeMediaChunk(req, res) {
   const chunk = await readBinary(req, 25_000_000);
   if (!youtubeRuntime.ffmpeg || !youtubeRuntime.ffmpeg.stdin || youtubeRuntime.ffmpeg.stdin.destroyed) {
-    sendJson(res, 409, { error: "Livestream-Encoder ist nicht bereit." });
+    const detail = youtubeRuntime.stderr ? ` ${youtubeRuntime.stderr}` : "";
+    sendJson(res, 409, { error: `Livestream-Encoder ist nicht bereit.${detail}`.trim() });
     return;
   }
   try {
@@ -1943,7 +1945,8 @@ async function receiveYoutubeMediaChunk(req, res) {
     sendJson(res, 200, { ok: true });
   } catch (error) {
     youtubeRuntime.status = "error";
-    youtubeRuntime.error = error.message || "Videodaten konnten nicht an FFmpeg gesendet werden.";
+    const detail = youtubeRuntime.stderr ? ` ${youtubeRuntime.stderr}` : "";
+    youtubeRuntime.error = `${error.message || "Videodaten konnten nicht an FFmpeg gesendet werden."}${detail}`.trim();
     broadcastSession();
     sendJson(res, 500, { error: youtubeRuntime.error });
   }
