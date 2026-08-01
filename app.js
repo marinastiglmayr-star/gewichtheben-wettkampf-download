@@ -329,6 +329,7 @@ function cacheElements() {
     youtubeClientSecret: $("#youtube-client-secret"),
     youtubePrivacy: $("#youtube-privacy"),
     youtubeTitle: $("#youtube-title"),
+    youtubeTitlePreview: $("#youtube-title-preview"),
     youtubeFfmpegPath: $("#youtube-ffmpeg-path"),
     youtubeCamera: $("#youtube-camera"),
     youtubeMicrophone: $("#youtube-microphone"),
@@ -458,6 +459,7 @@ function updateSetupMetaFromForms() {
   saveState();
   renderHeader();
   renderConnection();
+  renderYouTubeTitlePreview();
 }
 
 async function initializeState() {
@@ -2251,12 +2253,34 @@ function renderYouTubeSettings() {
     els.youtubeClientId.value = settings.clientId || "";
     els.youtubeClientSecret.value = "";
     els.youtubePrivacy.value = settings.privacyStatus || "unlisted";
-    els.youtubeTitle.value = settings.titleTemplate || "{event} - Livestream";
+    els.youtubeTitle.value = settings.titleTemplate || "{event}";
     els.youtubeFfmpegPath.value = settings.ffmpegPath || "";
     renderYouTubeDeviceSelects(settings);
   }
+  renderYouTubeTitlePreview();
   renderYouTubeStatusOnly();
   scheduleYouTubePreviewStart();
+}
+
+function renderYouTubeTitlePreview() {
+  if (!els.youtubeTitlePreview) return;
+  const template = els.youtubeTitle?.value || youtubePayload().settings?.titleTemplate || "{event}";
+  els.youtubeTitlePreview.textContent = `Aktueller YouTube-Name: ${formatYouTubeTitlePreview(template)}`;
+}
+
+function formatYouTubeTitlePreview(template) {
+  const replacements = {
+    event: state.meta.eventName || "Gewichtheben",
+    category: state.meta.category || "",
+    platform: state.meta.group || "",
+    date: new Date().toLocaleDateString("de-DE"),
+  };
+  return (
+    String(template || "{event}")
+      .replace(/\{(event|category|platform|date)\}/g, (_, key) => replacements[key] || "")
+      .replace(/\s+/g, " ")
+      .trim() || replacements.event
+  );
 }
 
 function renderYouTubeStatusOnly() {
@@ -2324,6 +2348,7 @@ function renderYouTubeDeviceSelects(settings = {}) {
 
 function handleYouTubeFormChange(event) {
   saveYouTubeSettings({ silent: true, debounce: true });
+  if (event.target === els.youtubeTitle || event.target === els.youtubePrivacy) renderYouTubeTitlePreview();
   if (event.target === els.youtubeCamera) {
     window.setTimeout(() => startYouTubePreview(), 100);
   }
@@ -2337,7 +2362,7 @@ function collectYouTubeSettingsFromForm() {
     clientId: els.youtubeClientId?.value || "",
     clientSecret: els.youtubeClientSecret?.value || "",
     privacyStatus: els.youtubePrivacy?.value || "unlisted",
-    titleTemplate: els.youtubeTitle?.value || "{event} - Livestream",
+    titleTemplate: els.youtubeTitle?.value || "{event}",
     ffmpegPath: els.youtubeFfmpegPath?.value || "",
     cameraDeviceId: els.youtubeCamera?.value || "",
     cameraLabel: cameraOption && cameraOption.value ? cameraOption.textContent : "",
@@ -2642,7 +2667,41 @@ function drawYouTubeVideoFrame(context, video, width, height) {
   if (video?.readyState >= 2) {
     context.drawImage(video, 0, 0, width, height);
   }
+  drawYouTubeEventTitleOverlay(context, width, height);
   drawYouTubeStreamOverlay(context, width, height, getYouTubeStreamOverlayData());
+}
+
+function drawYouTubeEventTitleOverlay(context, width, height) {
+  const title = state.meta.eventName || "Gewichtheben";
+  const details = [state.meta.category, state.meta.group && `Plattform ${state.meta.group}`].filter(Boolean).join(" · ");
+  const margin = Math.max(14, Math.round(width * 0.024));
+  const boxWidth = Math.min(Math.max(Math.round(width * 0.34), 310), 560);
+  const boxHeight = details ? Math.max(78, Math.round(height * 0.11)) : Math.max(58, Math.round(height * 0.085));
+  const padding = Math.max(12, Math.round(boxWidth * 0.04));
+
+  context.save();
+  drawCanvasRoundRect(context, margin, margin, boxWidth, boxHeight, 14);
+  context.fillStyle = "rgba(4, 16, 27, 0.72)";
+  context.fill();
+  context.strokeStyle = "rgba(255, 255, 255, 0.28)";
+  context.lineWidth = Math.max(1, Math.round(width / 1400));
+  context.stroke();
+
+  context.textBaseline = "alphabetic";
+  context.fillStyle = "#83f3ff";
+  context.font = `800 ${Math.max(10, Math.round(boxWidth * 0.032))}px Arial, sans-serif`;
+  context.fillText("WETTKAMPF", margin + padding, margin + padding + 8);
+
+  context.fillStyle = "#ffffff";
+  context.font = `900 ${Math.max(18, Math.round(boxWidth * 0.064))}px Arial, sans-serif`;
+  context.fillText(truncateCanvasText(context, title, boxWidth - padding * 2), margin + padding, margin + padding + 36);
+
+  if (details) {
+    context.fillStyle = "rgba(255, 255, 255, 0.78)";
+    context.font = `700 ${Math.max(11, Math.round(boxWidth * 0.036))}px Arial, sans-serif`;
+    context.fillText(truncateCanvasText(context, details, boxWidth - padding * 2), margin + padding, margin + boxHeight - padding + 2);
+  }
+  context.restore();
 }
 
 function getYouTubeStreamOverlayData() {

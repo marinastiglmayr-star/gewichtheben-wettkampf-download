@@ -1464,7 +1464,7 @@ function defaultYoutubeConfig() {
     accessToken: "",
     tokenExpiresAt: 0,
     privacyStatus: "unlisted",
-    titleTemplate: "{event} - Livestream",
+    titleTemplate: "{event}",
     cameraDeviceId: "",
     cameraLabel: "",
     microphoneDeviceId: "",
@@ -1515,6 +1515,7 @@ function normalizeYoutubeConfig(input = {}) {
   const privacy = ["public", "unlisted"].includes(input.privacyStatus)
     ? input.privacyStatus
     : base.privacyStatus;
+  const titleTemplate = String(input.titleTemplate || base.titleTemplate).trim();
   return {
     ...base,
     enabled: Boolean(input.enabled),
@@ -1524,7 +1525,7 @@ function normalizeYoutubeConfig(input = {}) {
     accessToken: String(input.accessToken || ""),
     tokenExpiresAt: Number(input.tokenExpiresAt) || 0,
     privacyStatus: privacy,
-    titleTemplate: String(input.titleTemplate || base.titleTemplate).trim() || base.titleTemplate,
+    titleTemplate: titleTemplate === "{event} - Livestream" ? base.titleTemplate : titleTemplate || base.titleTemplate,
     cameraDeviceId: String(input.cameraDeviceId || ""),
     cameraLabel: String(input.cameraLabel || ""),
     microphoneDeviceId: String(input.microphoneDeviceId || ""),
@@ -2136,7 +2137,7 @@ function resolveFfmpegPath() {
 }
 
 function formatYoutubeTitle(body = {}) {
-  const template = youtubeConfig.titleTemplate || "{event} - Livestream";
+  const template = youtubeConfig.titleTemplate || "{event}";
   const replacements = {
     event: body.eventName || state.meta.eventName || "Gewichtheben",
     category: body.category || state.meta.category || "",

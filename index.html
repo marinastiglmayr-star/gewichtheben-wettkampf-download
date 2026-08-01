@@ -251,9 +251,10 @@
                     </select>
                   </label>
                   <label class="wide">
-                    <span>Titel (vorausgefuellt)</span>
-                    <input id="youtube-title" type="text" placeholder="{event} - Livestream" />
-                    <small class="field-hint">{event} wird automatisch durch den Wettkampfnamen ersetzt.</small>
+                    <span>Name des YouTube-Videos</span>
+                    <input id="youtube-title" type="text" placeholder="{event}" />
+                    <small class="field-hint">{event} wird automatisch durch den Wettkampfnamen ersetzt. Standard ist exakt der Name aus „Wettkampf“.</small>
+                    <small id="youtube-title-preview" class="field-hint youtube-title-preview">Aktueller YouTube-Name: Gewichtheben</small>
                   </label>
                   <label class="wide">
                     <span>FFmpeg-Pfad (optional)</span>
