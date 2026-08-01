@@ -1293,6 +1293,7 @@ function syncPhase() {
   if (!state.meta.activeGroupId) {
     state.meta.mode = lift === "snatch" ? "snatchComplete" : "finished";
     state.meta.breakPending = false;
+    state.meta.awardCeremony = false;
     return;
   }
 
@@ -1304,6 +1305,7 @@ function syncPhase() {
   const activeGroup = state.groups.find((group) => group.id === state.meta.activeGroupId);
   markGroupLiftComplete(activeGroup, lift);
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
   if (lift === "snatch") state.meta.mode = "groupComplete";
   else state.meta.mode = firstPendingGroupId() ? "groupComplete" : "finished";
 }
@@ -2362,6 +2364,7 @@ function defaultState() {
       childTechniqueEnabled: false,
       sequence: 0,
       breakPending: false,
+      awardCeremony: false,
       startedAt: null,
       liveVotes: { key: null, votes: [null, null, null] },
       liveTechnique: { key: null, points: [null, null, null] },

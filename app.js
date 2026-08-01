@@ -176,6 +176,7 @@ const emptyState = () => ({
     childTechniqueEnabled: false,
     sequence: 0,
     breakPending: false,
+    awardCeremony: false,
     startedAt: null,
     liveVotes: { key: null, votes: [null, null, null] },
     liveTechnique: { key: null, points: [null, null, null] },
@@ -682,6 +683,7 @@ function handleClick(event) {
   if (action === "set-judge") setJudgeVote(button);
   if (action === "clear-votes") clearJudgeVotes();
   if (action === "record-attempt") recordCurrentAttempt();
+  if (action === "start-award-ceremony") startAwardCeremony();
   if (action === "start-clean-jerk") startCleanJerk();
   if (action === "start-next-group") startNextGroup();
   if (action === "undo-attempt") undoLastAttempt();
@@ -1321,6 +1323,7 @@ function startCompetition(options = {}) {
   state.meta.activeGroupId = firstPendingGroupId();
   state.meta.sequence = 0;
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
   state.meta.startedAt = new Date().toISOString();
 
   judgeDraft = { key: null, votes: [null, null, null] };
@@ -1349,6 +1352,7 @@ function startCleanJerk() {
   state.meta.activeLift = "cleanJerk";
   state.meta.activeGroupId = groupId;
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
   state.meta.mode = "competition";
   athletesForGroup(groupId).forEach((athlete) => {
     if (!athlete.next.cleanJerk) athlete.next.cleanJerk = athlete.openers.cleanJerk;
@@ -1376,6 +1380,7 @@ function startNextGroup() {
   state.meta.activeGroupId = nextGroupId;
   state.meta.activeLift = "snatch";
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
   state.meta.liveVotes = { key: null, votes: [null, null, null] };
   state.meta.liveTechnique = { key: null, points: [null, null, null] };
   judgeDraft = state.meta.liveVotes;
@@ -1388,6 +1393,16 @@ function startNextGroup() {
   openWaitingRoomDisplayWindow();
 }
 
+function startAwardCeremony() {
+  if (state.meta.mode !== "groupComplete" || state.meta.activeLift !== "cleanJerk") return;
+  state.meta.awardCeremony = true;
+  state.meta.breakPending = false;
+  state.meta.attemptTimer = null;
+  saveState();
+  render();
+  showToast("Preisverleihung im Stream angezeigt.");
+}
+
 function resetCompetition() {
   if (!window.confirm("Wettkampfmodus beenden und zur Vorbereitung zurückkehren?")) return;
 
@@ -1395,6 +1410,7 @@ function resetCompetition() {
   state.meta.activeLift = "snatch";
   state.meta.activeGroupId = null;
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
   state.meta.sequence = 0;
   state.athletes.forEach((athlete) => {
     athlete.withdrawn = false;
@@ -1609,6 +1625,7 @@ function undoLastAttempt() {
   state.meta.activeLift = last.lift;
   state.meta.activeGroupId = getAthleteGroupId(last.athlete);
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
   const group = state.groups.find((item) => item.id === state.meta.activeGroupId);
   if (group) {
     group.completed = false;
@@ -2705,6 +2722,7 @@ function drawYouTubeEventTitleOverlay(context, width, height) {
 }
 
 function getYouTubeStreamOverlayData() {
+  if (state.meta.awardCeremony) return getYouTubeAwardOverlayData();
   if (state.meta.mode === "groupComplete" || state.meta.breakPending) return getYouTubePauseOverlayData();
   if (state.meta.mode === "finished") {
     return {
@@ -2746,6 +2764,16 @@ function getYouTubeStreamOverlayData() {
     detail: `${youtubeLiftLabel(current.lift)} \u00b7 Versuch ${current.attemptNo} \u00b7 Gruppe ${groupNameById(current.athlete.groupId)}`,
     weight: `${formatScore(current.weight)} kg`,
     result: `KR: ${decision}`,
+  };
+}
+
+function getYouTubeAwardOverlayData() {
+  const activeGroup = getActiveGroup();
+  return {
+    type: "pause",
+    eyebrow: "Preisverleihung",
+    title: "Preisverleihung",
+    subtitle: activeGroup ? `Gruppe ${activeGroup.name}` : "Der Stream läuft weiter.",
   };
 }
 
@@ -3076,11 +3104,14 @@ function renderCompetition() {
   const lift = state.meta.activeLift;
   const activeGroup = getActiveGroup();
   const groupLabel = activeGroup ? `Gruppe ${activeGroup.name}` : "Gruppe";
+  const awardActive = state.meta.mode === "groupComplete" && Boolean(state.meta.awardCeremony);
   els.phaseEyebrow.textContent =
     state.meta.mode === "finished"
       ? "Abschluss"
       : state.meta.mode === "snatchComplete"
         ? "Reißen abgeschlossen"
+      : awardActive
+        ? "Preisverleihung"
       : state.meta.mode === "groupComplete"
         ? "Gruppe abgeschlossen"
         : `Wettkampf · ${groupLabel}`;
@@ -3089,6 +3120,8 @@ function renderCompetition() {
       ? "Endergebnis"
       : state.meta.mode === "snatchComplete"
         ? "Reißen aller Gruppen abgeschlossen"
+      : awardActive
+        ? `${groupLabel}: Preisverleihung`
       : state.meta.mode === "groupComplete"
         ? `${groupLabel} abgeschlossen`
       : state.meta.breakPending
@@ -3595,16 +3628,22 @@ function renderCurrentAttempt() {
     const nextGroupId = lift === "cleanJerk" ? firstPendingGroupId() : null;
     const nextGroup = nextGroupId ? state.groups.find((group) => group.id === nextGroupId) : null;
     const liftLabel = LIFTS[lift].label;
+    const awardActive = Boolean(state.meta.awardCeremony);
     els.currentAttempt.innerHTML = `
       <div class="current-grid">
         <div class="current-lifter">
           <p class="eyebrow">${escapeHtml(activeGroupLabel)}</p>
-          <h2>${liftLabel} abgeschlossen</h2>
-          <p class="muted">${liftLabel} dieser Gruppe ist vollständig eingetragen.</p>
+          <h2>${awardActive ? "Preisverleihung" : `${liftLabel} abgeschlossen`}</h2>
+          <p class="muted">${
+            awardActive
+              ? "Der Stream läuft weiter und zeigt die Preisverleihung. Die nächste Gruppe startet erst nach Klick auf den Start-Button."
+              : "Der Stream zeigt Pause, bis der nächste Abschnitt gestartet wird."
+          }</p>
         </div>
         <div class="decision-strip">
           <span class="decision-label">${nextGroup ? `Nächste Gruppe: ${escapeHtml(nextGroup.name)}` : "Abschnitt fertig"}</span>
           <div class="form-actions">
+            ${lift === "cleanJerk" ? `<button type="button" class="ghost-button ${awardActive ? "active" : ""}" data-action="start-award-ceremony">Preisverleihung einleiten</button>` : ""}
             ${
               nextGroup
                 ? `<button type="button" class="primary-button" data-action="start-next-group">Nächste Gruppe starten</button>`
@@ -4692,6 +4731,7 @@ function syncPhase() {
   if (!state.meta.activeGroupId) {
     state.meta.mode = lift === "snatch" ? "snatchComplete" : "finished";
     state.meta.breakPending = false;
+    state.meta.awardCeremony = false;
     return;
   }
 
@@ -4703,6 +4743,7 @@ function syncPhase() {
   const activeGroup = getActiveGroup();
   markGroupLiftComplete(activeGroup, lift);
   state.meta.breakPending = false;
+  state.meta.awardCeremony = false;
 
   if (lift === "snatch") {
     state.meta.mode = "groupComplete";

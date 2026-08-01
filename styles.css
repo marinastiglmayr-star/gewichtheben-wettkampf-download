@@ -1027,6 +1027,12 @@ select:focus {
   background: #f8fafb;
 }
 
+.ghost-button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 body.iwf-mode .topbar {
   border-bottom-color: rgba(88, 166, 255, 0.22);
   background: rgba(7, 17, 31, 0.92);
@@ -1152,6 +1158,7 @@ body.iwf-mode .mini-button:hover {
 }
 
 body.iwf-mode .setup-nav-button.active,
+body.iwf-mode .ghost-button.active,
 body.iwf-mode .lift-tab.active,
 body.iwf-mode .toggle-button:has(input:checked) {
   border-color: rgba(88, 166, 255, 0.72);
