@@ -2320,7 +2320,15 @@ function renderYouTubeStatusOnly() {
     if (ffmpegMissing) {
       notes.push("YouTube ist verbunden. FFmpeg fehlt noch. Nutze den Button FFmpeg automatisch einrichten.");
     }
-    if (youtube.status === "starting") notes.push("YouTube bekommt das Videosignal und schaltet den Stream in Kuerze live.");
+    if (youtube.status === "starting") {
+      const details = [
+        youtube.chunkCount ? `${youtube.chunkCount} Videopakete gesendet` : "noch keine Videopakete bestaetigt",
+        youtube.streamStatus ? `YouTube-Stream: ${youtube.streamStatus}` : "",
+        youtube.broadcastStatus ? `Broadcast: ${youtube.broadcastStatus}` : "",
+        youtube.privacyStatus ? `Sichtbarkeit: ${youtube.privacyStatus}` : "",
+      ].filter(Boolean).join(". ");
+      notes.push(`YouTube bekommt das Videosignal und schaltet den Stream in Kuerze live. ${details}`);
+    }
     if (youtube.status === "live") notes.push("Livestream laeuft. Er endet erst ueber den Button Livestream beenden.");
     if (youtube.error) notes.push(youtube.error);
     els.youtubeStatusText.textContent = notes.join(" ") || "Bereit. Kamera und Mikrofon waehlen, dann kann der Livestream beim Wettkampfstart automatisch beginnen.";

@@ -1465,7 +1465,7 @@ function defaultYoutubeConfig() {
     refreshToken: "",
     accessToken: "",
     tokenExpiresAt: 0,
-    privacyStatus: "unlisted",
+    privacyStatus: "public",
     titleTemplate: "{event}",
     cameraDeviceId: "",
     cameraLabel: "",
@@ -1495,6 +1495,10 @@ function defaultYoutubeRuntime() {
     ffmpeg: null,
     stderr: "",
     chunkCount: 0,
+    lastChunkAt: null,
+    streamStatus: "",
+    broadcastStatus: "",
+    privacyStatus: "",
     transitionStarted: false,
     startedAt: null,
   };
@@ -1545,6 +1549,11 @@ function getYoutubePayload() {
     watchUrl: youtubeRuntime.watchUrl || "",
     ffmpegFound: Boolean(ffmpegPath),
     ffmpegPath: ffmpegPath || "",
+    chunkCount: youtubeRuntime.chunkCount || 0,
+    lastChunkAt: youtubeRuntime.lastChunkAt || null,
+    streamStatus: youtubeRuntime.streamStatus || "",
+    broadcastStatus: youtubeRuntime.broadcastStatus || "",
+    privacyStatus: youtubeRuntime.privacyStatus || "",
     settings: {
       enabled: Boolean(youtubeConfig.enabled),
       clientId: youtubeConfig.clientId,
@@ -1874,6 +1883,8 @@ async function startYoutubeLivestream(req, res) {
         },
       },
     );
+    youtubeRuntime.privacyStatus = broadcast?.status?.privacyStatus || youtubeConfig.privacyStatus;
+    await ensureYoutubeBroadcastPrivacy(broadcast.id, youtubeConfig.privacyStatus);
 
     const stream = await youtubeApi(
       "POST",
@@ -1938,6 +1949,7 @@ async function receiveYoutubeMediaChunk(req, res) {
   try {
     await writeFfmpegStdin(chunk);
     youtubeRuntime.chunkCount += 1;
+    youtubeRuntime.lastChunkAt = new Date().toISOString();
     if (!youtubeRuntime.transitionStarted) {
       youtubeRuntime.transitionStarted = true;
       transitionYoutubeBroadcastWhenReady().catch((error) => {
@@ -1989,8 +2001,21 @@ async function transitionYoutubeBroadcastWhenReady() {
     await delay(3000);
     if (!["starting", "live"].includes(youtubeRuntime.status)) return;
     const streamStatus = await youtubeApi("GET", "/liveStreams", { part: "status", id: youtubeRuntime.streamId });
-    const value = streamStatus?.items?.[0]?.status?.streamStatus || "";
-    if (value === "active") {
+    const broadcastStatus = await youtubeApi("GET", "/liveBroadcasts", { part: "status", id: youtubeRuntime.broadcastId });
+    const streamValue = streamStatus?.items?.[0]?.status?.streamStatus || "";
+    const broadcastValue = broadcastStatus?.items?.[0]?.status?.lifeCycleStatus || "";
+    const privacyValue = broadcastStatus?.items?.[0]?.status?.privacyStatus || "";
+    youtubeRuntime.streamStatus = streamValue;
+    youtubeRuntime.broadcastStatus = broadcastValue;
+    youtubeRuntime.privacyStatus = privacyValue || youtubeRuntime.privacyStatus;
+    broadcastSession();
+    if (broadcastValue === "live" || broadcastValue === "liveStarting") {
+      youtubeRuntime.status = "live";
+      youtubeRuntime.error = "";
+      broadcastSession();
+      return;
+    }
+    if (streamValue === "active") {
       try {
         await youtubeApi("POST", "/liveBroadcasts/transition", {
           part: "status",
@@ -2025,8 +2050,25 @@ async function transitionYoutubeBroadcastWhenReady() {
       return;
     }
   }
-  youtubeRuntime.error = "YouTube meldet noch kein aktives Videosignal. Bitte Kamera, FFmpeg und Internetverbindung pruefen.";
+  youtubeRuntime.error = `YouTube meldet noch kein aktives Videosignal. Videopakete: ${youtubeRuntime.chunkCount || 0}. Stream: ${youtubeRuntime.streamStatus || "unbekannt"}. Broadcast: ${youtubeRuntime.broadcastStatus || "unbekannt"}.`;
   broadcastSession();
+}
+
+async function ensureYoutubeBroadcastPrivacy(broadcastId, privacyStatus) {
+  if (!broadcastId || !["public", "unlisted"].includes(privacyStatus)) return;
+  try {
+    await youtubeApi("PUT", "/videos", { part: "status" }, {
+      id: broadcastId,
+      status: {
+        privacyStatus,
+        selfDeclaredMadeForKids: false,
+      },
+    });
+    youtubeRuntime.privacyStatus = privacyStatus;
+  } catch (error) {
+    youtubeRuntime.error = `Sichtbarkeit konnte nicht bestaetigt werden: ${error.message || error}`;
+    broadcastSession();
+  }
 }
 
 function spawnYoutubeFfmpeg(ffmpegPath, targetUrl) {
