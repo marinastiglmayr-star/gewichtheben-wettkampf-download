@@ -181,6 +181,7 @@ const emptyState = () => ({
     liveVotes: { key: null, votes: [null, null, null] },
     liveTechnique: { key: null, points: [null, null, null] },
     attemptTimer: null,
+    timerStartBlockedUntil: null,
     judgeConnections: { solo: null, left: null, center: null, right: null },
     displayAssignments: {},
   },
@@ -1603,6 +1604,7 @@ function recordCurrentAttempt() {
   state.meta.liveTechnique = { key: null, points: [null, null, null] };
   syncPhase();
   setAttemptTimerForNext(current.athlete.id);
+  state.meta.timerStartBlockedUntil = new Date(Date.now() + 30_000).toISOString();
   saveState();
   render();
 }
@@ -6822,6 +6824,7 @@ function normalizeState(input) {
   output.meta.scoringMode = normalizeScoringMode(output.meta.scoringMode);
   if (output.meta.scoringMode === SCORING_MODES.IWF) output.meta.refereeCount = 3;
   output.meta.childTechniqueEnabled = Boolean(output.meta.childTechniqueEnabled);
+  output.meta.timerStartBlockedUntil = input?.meta?.timerStartBlockedUntil || null;
   output.meta.displayAssignments = normalizeDisplayAssignments(input?.meta?.displayAssignments || {});
   if (output.meta.scoringMode === SCORING_MODES.IWF) output.meta.judgeConnections.solo = null;
 

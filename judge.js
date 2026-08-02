@@ -24,6 +24,7 @@ const AUTH_KEY = "gewichtheben-kampfrichter";
 let auth = loadAuth();
 let state = null;
 let eventSource = null;
+let renderTicker = null;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -63,6 +64,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await loadState();
   startEvents();
+  startRenderTicker();
   render();
 });
 
@@ -206,6 +208,13 @@ function startEvents() {
   });
 }
 
+function startRenderTicker() {
+  if (renderTicker) return;
+  renderTicker = window.setInterval(() => {
+    if (auth?.token && state?.meta?.mode === "competition") renderTimerAction();
+  }, 1000);
+}
+
 function render() {
   const iwfMode = isIwfMode();
   document.body.classList.toggle("iwf-mode", iwfMode);
@@ -253,13 +262,21 @@ function renderTimerAction() {
   const hasPreparedTimer = Boolean(timer?.seconds && timer.key === currentKey);
   const hasStartedTimer = Boolean(timer?.startedBy && timer?.startedAt && timer.seconds && timer.key === currentKey);
   const canControl = canControlAttempt();
+  const blockedSeconds = timerStartBlockedSeconds();
   if (els.timerStart) {
-    els.timerStart.disabled = !canControl || !hasPreparedTimer || hasStartedTimer;
+    els.timerStart.disabled = !canControl || !hasPreparedTimer || hasStartedTimer || blockedSeconds > 0;
+    els.timerStart.textContent = blockedSeconds > 0 ? `Zeit starten (${blockedSeconds})` : "Zeit starten";
   }
   if (els.timerToggle) {
     els.timerToggle.disabled = !canControl || !hasStartedTimer;
     els.timerToggle.textContent = timer?.paused ? "Zeit weiterlaufen lassen" : "Zeit pausieren";
   }
+}
+
+function timerStartBlockedSeconds() {
+  const until = new Date(state?.meta?.timerStartBlockedUntil || "").getTime();
+  if (!Number.isFinite(until)) return 0;
+  return Math.max(0, Math.ceil((until - Date.now()) / 1000));
 }
 
 function renderAttempt() {
