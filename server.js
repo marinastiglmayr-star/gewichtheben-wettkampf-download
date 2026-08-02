@@ -1189,6 +1189,25 @@ function attemptKey(item) {
   return `${item.athlete.id}:${item.lift}:${item.attemptNo}`;
 }
 
+function lastRecordedAttemptAthleteId() {
+  let latest = null;
+  for (const athlete of state.athletes || []) {
+    for (const lift of Object.keys(LIFTS)) {
+      for (const attempt of athlete.attempts?.[lift] || []) {
+        const sequence = parseInteger(attempt.sequence);
+        if (!latest || sequence > latest.sequence) latest = { sequence, athleteId: athlete.id };
+      }
+    }
+  }
+  return latest?.athleteId || null;
+}
+
+function timerSecondsForAttempt(next, previousAthleteId = null) {
+  if (!next?.athlete?.id) return 60;
+  const lastAthleteId = previousAthleteId || lastRecordedAttemptAthleteId();
+  return next.athlete.id === lastAthleteId ? 120 : 60;
+}
+
 function attemptChangeKey(lift, attemptNo) {
   return `${lift}:${attemptNo}`;
 }
@@ -1213,11 +1232,12 @@ function setAttemptTimerForNext(previousAthleteId) {
     state.meta.attemptTimer = null;
     return;
   }
+  const seconds = timerSecondsForAttempt(next, previousAthleteId);
   state.meta.attemptTimer = {
     startedAt: null,
-    seconds: next.athlete.id === previousAthleteId ? 120 : 60,
+    seconds,
     paused: true,
-    remaining: next.athlete.id === previousAthleteId ? 120 : 60,
+    remaining: seconds,
     startedBy: null,
     athleteId: next.athlete.id,
     key: attemptKey(next),
