@@ -157,7 +157,6 @@ async function main() {
     for (const url of getLanUrls("/")) console.log(`PC: ${url}`);
     for (const url of getLanUrls("/judge")) console.log(`Kampfrichter: ${url}`);
     for (const url of getLanUrls("/waage")) console.log(`Waage: ${url}`);
-    for (const url of getLanUrls("/warteraum")) console.log(`Warteraum: ${url}`);
     for (const url of getLanUrls("/pi")) console.log(`Warteraum-Anzeige: ${url}`);
     for (const url of getLanUrls("/display")) console.log(`Bildschirmstation: ${url}`);
     console.log(`Verbindungscode: ${sessionCode}`);
@@ -286,6 +285,11 @@ async function route(req, res) {
 
   if (url.pathname === "/api/display/assign" && req.method === "POST") {
     await assignDisplayClient(req, res);
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/tablet/")) {
+    sendJson(res, 410, { error: "Warteraum-Eingabe wurde entfernt. Aenderungen erfolgen am Host-PC." });
     return;
   }
 
@@ -1439,8 +1443,6 @@ async function serveStatic(urlPath, res) {
       ? "index.html"
       : urlPath === "/judge"
         ? "judge.html"
-        : urlPath === "/tablet" || urlPath === "/warteraum"
-          ? "tablet.html"
         : urlPath === "/waage"
           ? "weigh.html"
         : urlPath === "/display"
@@ -3176,8 +3178,6 @@ function getSessionPayload(req) {
     urls: getLanUrls("/judge"),
     weighUrl: `http://${host}/waage`,
     weighUrls: getLanUrls("/waage"),
-    tabletUrl: `http://${host}/warteraum`,
-    tabletUrls: getLanUrls("/warteraum"),
     waitingRoomDisplayUrl: `http://${host}/pi`,
     waitingRoomDisplayUrls: getLanUrls("/pi"),
     displayStationUrl: `http://${host}/display`,
@@ -3186,7 +3186,6 @@ function getSessionPayload(req) {
     judges: sanitizeJudges(),
     controlClients: sanitizeControlClients(),
     weighClients: sanitizeWeighClients(),
-    tabletClients: sanitizeTabletClients(),
     displayClients: sanitizeDisplayClients(),
     displayAssignments: normalizeDisplayAssignments(state.meta.displayAssignments),
     youtube: getYoutubePayload(),

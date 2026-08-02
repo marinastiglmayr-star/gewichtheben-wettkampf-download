@@ -701,6 +701,7 @@ function handleClick(event) {
   if (action === "start-award-ceremony") startAwardCeremony();
   if (action === "start-clean-jerk") startCleanJerk();
   if (action === "start-next-group") startNextGroup();
+  if (action === "save-host-next-attempt") saveHostNextAttempt(button);
   if (action === "undo-attempt") undoLastAttempt();
   if (action === "reset-competition") resetCompetition();
   if (action === "reset-all") resetAllData();
@@ -2189,11 +2190,11 @@ function guidedNetworkStep() {
     view: "network",
     title: "Netzwerk und Anzeigen verbinden",
     shortTitle: "Netzwerk",
-    hint: "Pruefe Verbindungscode, Kampfrichter-Handys, Waage, Warteraum und die Bildschirmzuordnung fuer Scheibenstecker-, Protokoll- und Warteraumanzeige.",
+    hint: "Pruefe Verbindungscode, Kampfrichter-Handys, Waage und die Bildschirmzuordnung fuer Scheibenstecker-, Protokoll- und Warteraumanzeige.",
     checks: [
       guidedCheck("Verbindungscode", sessionInfo?.code ? "ok" : "open", sessionInfo?.code ? `Aktueller Code: ${sessionInfo.code}` : "Servercode noch nicht geladen."),
       guidedCheck("Kampfrichter", connectedJudges === slots.length ? "ok" : "warn", `${connectedJudges} von ${slots.length} Kampfrichter(n) verbunden.`),
-      guidedCheck("Waage und Warteraum", "warn", "Bei Bedarf Waage und Warteraum ueber den Link im gleichen WLAN anmelden."),
+      guidedCheck("Waage", "warn", "Bei Bedarf die Waage ueber den Link im gleichen WLAN anmelden."),
       guidedCheck("Bildschirme", displayClients ? "ok" : "warn", displayClients ? `${displayClients} Anzeigeclient(s) verbunden.` : "Scheibenstecker-/Warteraum-/Protokollfenster vor Ort pruefen."),
     ],
   };
@@ -3391,9 +3392,6 @@ function renderConnection() {
   const weighUrls = sessionInfo?.weighUrls?.length
     ? sessionInfo.weighUrls
     : judgeUrls.map((url) => url.replace(/\/judge$/, "/waage"));
-  const tabletUrls = sessionInfo?.tabletUrls?.length
-    ? sessionInfo.tabletUrls
-    : judgeUrls.map((url) => url.replace(/\/judge$/, "/warteraum"));
   const waitingRoomDisplayUrls = sessionInfo?.waitingRoomDisplayUrls?.length
     ? sessionInfo.waitingRoomDisplayUrls
     : judgeUrls.map((url) => url.replace(/\/judge$/, "/pi"));
@@ -3403,7 +3401,6 @@ function renderConnection() {
   const pcJudgeUrl = judgeUrls.find((url) => url.includes("localhost")) || "http://localhost:8765/judge";
   const phoneUrls = judgeUrls.filter((url) => !url.includes("localhost"));
   const wlanWeighUrls = weighUrls.filter((url) => !url.includes("localhost"));
-  const wlanTabletUrls = tabletUrls.filter((url) => !url.includes("localhost"));
   const wlanWaitingRoomDisplayUrls = waitingRoomDisplayUrls.filter((url) => !url.includes("localhost"));
   const wlanDisplayStationUrls = displayStationUrls.filter((url) => !url.includes("localhost"));
   const displayClients = Array.isArray(sessionInfo?.displayClients) ? sessionInfo.displayClients : [];
@@ -3439,12 +3436,6 @@ function renderConnection() {
         wlanWeighUrls.length
           ? wlanWeighUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
           : `<p class="warning-text">Keine Waage-WLAN-Adresse gefunden.</p>`
-      }
-      <p class="muted">Warteraum-Eingabe im gleichen WLAN</p>
-      ${
-        wlanTabletUrls.length
-          ? wlanTabletUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
-          : `<p class="warning-text">Keine Warteraum-WLAN-Adresse gefunden.</p>`
       }
       <p class="muted">Bildschirmstation fuer Pi / Beamer</p>
       ${
@@ -3483,7 +3474,6 @@ function renderConnection() {
 function renderControlClientStatus() {
   const clients = Array.isArray(sessionInfo?.controlClients) ? sessionInfo.controlClients : [];
   const weighClients = Array.isArray(sessionInfo?.weighClients) ? sessionInfo.weighClients : [];
-  const waitingRoomClients = Array.isArray(sessionInfo?.tabletClients) ? sessionInfo.tabletClients : [];
   const own = clients.find(isOwnControlClient) || (isHostView() ? clients.find(isHostClient) : null);
   const ownIdentity = own ? controlClientIdentity(own) : isHostView() ? "host" : null;
   const weighRows = weighClients.length
@@ -3504,24 +3494,6 @@ function renderControlClientStatus() {
         <span class="muted">nicht verbunden</span>
       </div>
     `;
-  const waitingRoomRows = waitingRoomClients.length
-    ? waitingRoomClients
-        .map(
-          (client, index) => `
-            <div class="judge-slot">
-              <strong>${index === 0 ? "Warteraum" : `Warteraum ${index + 1}`}</strong>
-              <span class="ok-text">verbunden</span>
-            </div>
-          `,
-        )
-        .join("")
-    : `
-      <div class="judge-slot">
-        <strong>Warteraum</strong>
-        <span class="muted">nicht verbunden</span>
-      </div>
-    `;
-
   return `
     <div class="judge-slots pc-slots">
       <div class="judge-slot">
@@ -3529,7 +3501,6 @@ function renderControlClientStatus() {
         <span class="${own ? "ok-text" : "muted"}">${own ? "verbunden" : "verbinde..."}</span>
       </div>
       ${weighRows}
-      ${waitingRoomRows}
     </div>
   `;
 }
@@ -4109,7 +4080,7 @@ function windowFeaturesForTarget(target, assignedScreen) {
   return parts.join(",");
 }
 
-function renderQueue() {
+function renderQueueLegacy() {
   const queue = state.meta.mode === "competition" && !state.meta.breakPending
     ? getQueue(state.meta.activeLift)
     : [];
@@ -4137,6 +4108,172 @@ function renderQueue() {
       `;
     })
     .join("");
+}
+
+function renderQueue() {
+  const queue = state.meta.mode === "competition" && !state.meta.breakPending
+    ? getQueue(state.meta.activeLift)
+    : [];
+  els.queueCount.textContent = `${queue.length}`;
+
+  if (!queue.length) {
+    els.queueTable.innerHTML = `<tr><td colspan="7" class="muted">Keine offenen Versuche.</td></tr>`;
+    return;
+  }
+
+  const current = queue[0] || null;
+  els.queueTable.innerHTML = queue
+    .slice(0, 16)
+    .map((item, index) => {
+      const key = attemptKey(item);
+      const changes = getAttemptChangeCount(item.athlete, item.lift, item.attemptNo);
+      const lockReason = getHostNextAttemptLockReason(item, current, changes);
+      const warning = nextWeightWarning(item.athlete, item.lift, item.weight);
+      const status = lockReason || warning || "aenderbar";
+      const minWeight = getEditableNextAttemptMinimum(item, current);
+      return `
+        <tr class="${index === 0 ? "current" : ""}">
+          <td>${index + 1}</td>
+          <td><strong>${escapeHtml(item.athlete.name)}</strong><br><span class="muted">Gruppe ${escapeHtml(groupNameById(item.athlete.groupId))}</span></td>
+          <td>${LIFTS[item.lift].short}${item.attemptNo}</td>
+          <td>
+            <div class="weight-cell">
+              <input class="weight-input" type="number" min="${minWeight}" step="1" value="${item.weight}" data-host-next-weight-key="${escapeHtml(key)}" aria-label="Naechstes Gewicht fuer ${escapeHtml(item.athlete.name)}" ${lockReason ? "disabled" : ""} />
+              <span>kg</span>
+            </div>
+          </td>
+          <td>${changes} / ${MAX_WAITING_ROOM_CHANGES}</td>
+          <td class="${lockReason || warning ? "warning-text" : "muted"}">${escapeHtml(status)}</td>
+          <td>
+            <button type="button" class="mini-button" data-action="save-host-next-attempt" data-key="${escapeHtml(key)}" data-athlete-id="${escapeHtml(item.athlete.id)}" data-lift="${item.lift}" data-attempt-no="${item.attemptNo}" ${lockReason ? "disabled" : ""}>Speichern</button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function findHostNextWeightInput(key) {
+  return Array.from(document.querySelectorAll("[data-host-next-weight-key]")).find((input) => input.dataset.hostNextWeightKey === key);
+}
+
+function getHostNextAttemptLockReason(item, current, changes) {
+  if (state.meta.mode !== "competition" || state.meta.breakPending) return "kein aktiver Versuch";
+  if (changes >= MAX_WAITING_ROOM_CHANGES) return `max. ${MAX_WAITING_ROOM_CHANGES} Aenderungen`;
+  if (current && attemptKey(item) === attemptKey(current) && isTimerStartedForAttempt(item) && remainingAttemptTimerSeconds() <= 30) {
+    return "Final Call";
+  }
+  return "";
+}
+
+function getEditableNextAttemptMinimum(item, current) {
+  if (current && attemptKey(item) === attemptKey(current) && isTimerStartedForAttempt(item)) {
+    return item.weight;
+  }
+  return minimumAttemptWeightForAthlete(item.athlete);
+}
+
+function isTimerStartedForAttempt(item) {
+  const timer = state.meta.attemptTimer;
+  return Boolean(timer?.startedBy && timer?.startedAt && timer.key === attemptKey(item));
+}
+
+function remainingAttemptTimerSeconds(timer = state.meta.attemptTimer) {
+  if (!timer?.seconds) return 0;
+  if (!timer.startedBy || !timer.startedAt) return Math.max(0, parseInteger(timer.remaining) || parseInteger(timer.seconds) || 0);
+  if (timer.paused) return Math.max(0, parseInteger(timer.remaining) || 0);
+  const startedAt = new Date(timer.startedAt).getTime();
+  if (!Number.isFinite(startedAt)) return parseInteger(timer.seconds) || 0;
+  return Math.max(0, (parseInteger(timer.seconds) || 0) - Math.floor((Date.now() - startedAt) / 1000));
+}
+
+function saveHostNextAttempt(button) {
+  const input = findHostNextWeightInput(button.dataset.key);
+  const weight = parseInteger(input?.value);
+  const result = updateNextAttemptWeight({
+    athleteId: button.dataset.athleteId,
+    lift: button.dataset.lift,
+    attemptNo: parseInteger(button.dataset.attemptNo),
+    weight,
+  });
+  if (!result.ok) {
+    showToast(result.error || "Aenderung nicht moeglich.");
+    renderQueue();
+    return;
+  }
+  saveState();
+  render();
+  showToast(`Gespeichert. Aenderungen: ${result.changes} / ${MAX_WAITING_ROOM_CHANGES}.`);
+}
+
+function updateNextAttemptWeight({ athleteId, lift, attemptNo, weight }) {
+  if (state.meta.mode !== "competition" || state.meta.breakPending) return { ok: false, error: "Kein aktiver Wettkampfversuch." };
+  const athlete = findAthlete(athleteId);
+  if (!athlete || athlete.withdrawn || getAthleteGroupId(athlete) !== state.meta.activeGroupId) {
+    return { ok: false, error: "Athlet nicht im aktuellen Durchgang." };
+  }
+  if (lift !== state.meta.activeLift) return { ok: false, error: "Der Abschnitt hat sich geaendert." };
+
+  const attemptInfo = getAttemptInfo(athlete, lift);
+  if (!attemptInfo || attemptInfo.attemptNo !== attemptNo) return { ok: false, error: "Der Versuch hat sich geaendert." };
+  if (!Number.isInteger(weight) || weight < 1) return { ok: false, error: "Bitte ein gueltiges Gewicht eintragen." };
+
+  const warning = nextWeightWarning(athlete, lift, weight);
+  if (warning) return { ok: false, error: warning };
+
+  const currentBefore = getCurrentAttempt();
+  const currentKey = currentBefore ? attemptKey(currentBefore) : "";
+  const targetKey = attemptKey(attemptInfo);
+  const targetIsCurrent = currentKey === targetKey;
+  const targetTimer = targetIsCurrent ? state.meta.attemptTimer : null;
+  const targetTimerStarted = Boolean(targetTimer?.startedBy && targetTimer?.startedAt && targetTimer.key === targetKey);
+  const currentRemaining = targetTimer ? remainingAttemptTimerSeconds(targetTimer) : 0;
+  const existingWeight = parseInteger(athlete.next?.[lift] || athlete.openers?.[lift]);
+
+  if (weight !== existingWeight && targetIsCurrent && targetTimerStarted && currentRemaining <= 30) {
+    return { ok: false, error: "Aenderung nur bis 31 Sekunden moeglich." };
+  }
+  if (weight < existingWeight && targetIsCurrent && targetTimerStarted) {
+    return { ok: false, error: "Reduzierung nur vor dem Start der Uhr moeglich." };
+  }
+
+  const currentChangeCount = getAttemptChangeCount(athlete, lift, attemptNo);
+  if (weight !== existingWeight && currentChangeCount >= MAX_WAITING_ROOM_CHANGES) {
+    return { ok: false, error: `Maximal ${MAX_WAITING_ROOM_CHANGES} Aenderungen pro Versuch.` };
+  }
+
+  const pauseRunningTimerForSameAthlete =
+    weight > existingWeight &&
+    targetIsCurrent &&
+    targetTimerStarted &&
+    !targetTimer.paused &&
+    targetTimer.key === targetKey;
+  const remainingBeforePause = pauseRunningTimerForSameAthlete ? remainingAttemptTimerSeconds(targetTimer) : null;
+
+  athlete.next[lift] = weight;
+  if (weight !== existingWeight) setAttemptChangeCount(athlete, lift, attemptNo, currentChangeCount + 1);
+
+  syncPhase();
+  const currentAfter = getCurrentAttempt();
+  const nextKey = currentAfter ? attemptKey(currentAfter) : "";
+  if (currentKey && nextKey && currentKey !== nextKey) {
+    state.meta.liveVotes = { key: null, votes: [null, null, null] };
+    state.meta.liveTechnique = { key: null, points: [null, null, null] };
+    setAttemptTimerForNext(null);
+  } else {
+    ensureAttemptTimerForCurrent();
+  }
+
+  const finalCurrent = getCurrentAttempt();
+  if (pauseRunningTimerForSameAthlete && finalCurrent && attemptKey(finalCurrent) === targetKey) {
+    state.meta.attemptTimer = {
+      ...state.meta.attemptTimer,
+      paused: true,
+      remaining: remainingBeforePause,
+    };
+  }
+
+  return { ok: true, changes: getAttemptChangeCount(athlete, lift, attemptNo) };
 }
 
 function renderStandings() {
@@ -4405,6 +4542,20 @@ function getAttemptInfo(athlete, lift) {
 
 function attemptKey(item) {
   return `${item.athlete.id}:${item.lift}:${item.attemptNo}`;
+}
+
+function attemptChangeKey(lift, attemptNo) {
+  return `${lift}:${attemptNo}`;
+}
+
+function getAttemptChangeCount(athlete, lift, attemptNo) {
+  const changes = athlete?.nextChangeCounts || {};
+  return Math.max(0, parseInteger(changes[attemptChangeKey(lift, attemptNo)]) || 0);
+}
+
+function setAttemptChangeCount(athlete, lift, attemptNo, count) {
+  athlete.nextChangeCounts = athlete.nextChangeCounts || {};
+  athlete.nextChangeCounts[attemptChangeKey(lift, attemptNo)] = Math.min(Math.max(parseInteger(count) || 0, 0), MAX_WAITING_ROOM_CHANGES);
 }
 
 function lastRecordedAttemptAthleteId() {

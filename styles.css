@@ -1687,6 +1687,13 @@ tbody tr:last-child td {
   padding: 16px;
 }
 
+.queue-panel .weight-cell {
+  display: grid;
+  grid-template-columns: minmax(78px, 110px) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .team-panel {
   grid-column: 1 / -1;
 }
