@@ -633,7 +633,7 @@ function handleClick(event) {
 
   if (action === "edit-athlete") editAthlete(id);
   if (action === "delete-athlete") deleteAthlete(id);
-  if (action === "delete-group") deleteGroup(id);
+  if (action === "delete-group") deleteGroupWithReassign(id);
   if (action === "delete-team") deleteTeam(id);
   if (action === "move-group") moveGroup(id, button.dataset.direction);
   if (action === "set-setup-view") setSetupView(button.dataset.view);
@@ -1022,6 +1022,38 @@ function deleteGroup(id) {
   state.groups = state.groups.filter((item) => item.id !== id);
   saveState();
   render();
+}
+
+function deleteGroupWithReassign(id) {
+  const group = state.groups.find((item) => item.id === id);
+  if (!group) return;
+  if (state.groups.length <= 1) {
+    showToast("Mindestens eine Gruppe wird benoetigt.");
+    return;
+  }
+
+  const groups = getOrderedGroups();
+  const groupIndex = groups.findIndex((item) => item.id === id);
+  const fallbackGroup = groups[groupIndex - 1] || groups[groupIndex + 1] || groups.find((item) => item.id !== id);
+  if (!fallbackGroup) {
+    showToast("Es wurde keine Ersatzgruppe gefunden.");
+    return;
+  }
+
+  const athletesInGroup = state.athletes.filter((athlete) => athlete.groupId === id);
+  state.athletes.forEach((athlete) => {
+    if (athlete.groupId === id) athlete.groupId = fallbackGroup.id;
+  });
+  state.groups = groups.filter((item) => item.id !== id).map((item, index) => ({ ...item, order: index + 1 }));
+  if (state.meta.activeGroupId === id) state.meta.activeGroupId = fallbackGroup.id;
+
+  saveState();
+  render();
+  showToast(
+    athletesInGroup.length
+      ? `Gruppe entfernt. ${athletesInGroup.length} Athlet${athletesInGroup.length === 1 ? "" : "en"} wurden nach ${fallbackGroup.name} verschoben.`
+      : "Gruppe entfernt.",
+  );
 }
 
 async function deleteTeam(id) {
@@ -3164,7 +3196,7 @@ function renderGroups() {
   els.groupsList.innerHTML = groups
     .map((group, index) => {
       const athletes = athletesForGroup(group.id);
-      const canDelete = groups.length > 1 && athletes.length === 0;
+      const canDelete = groups.length > 1;
       return `
         <div class="group-chip">
           <label>
@@ -3178,7 +3210,7 @@ function renderGroups() {
             ${
               canDelete
                 ? `<button type="button" class="mini-button" data-action="delete-group" data-id="${group.id}">Entfernen</button>`
-                : `<span class="muted">${athletes.length ? "zugeordnet" : "letzte Gruppe"}</span>`
+                : `<span class="muted">letzte Gruppe</span>`
             }
           </div>
         </div>
