@@ -1505,6 +1505,7 @@ function defaultYoutubeConfig() {
     cameraLabel: "",
     microphoneDeviceId: "",
     microphoneLabel: "",
+    microphoneGain: 100,
     streamResolution: "720p",
     ffmpegPath: "",
   };
@@ -1575,9 +1576,16 @@ function normalizeYoutubeConfig(input = {}) {
     cameraLabel: String(input.cameraLabel || ""),
     microphoneDeviceId: String(input.microphoneDeviceId || ""),
     microphoneLabel: String(input.microphoneLabel || ""),
+    microphoneGain: normalizeYoutubeMicrophoneGain(input.microphoneGain),
     streamResolution,
     ffmpegPath: String(input.ffmpegPath || "").trim(),
   };
+}
+
+function normalizeYoutubeMicrophoneGain(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 100;
+  return Math.min(200, Math.max(0, Math.round(number)));
 }
 
 function getYoutubePayload() {
@@ -1603,6 +1611,7 @@ function getYoutubePayload() {
       cameraLabel: youtubeConfig.cameraLabel,
       microphoneDeviceId: youtubeConfig.microphoneDeviceId,
       microphoneLabel: youtubeConfig.microphoneLabel,
+      microphoneGain: youtubeConfig.microphoneGain,
       streamResolution: youtubeConfig.streamResolution,
       ffmpegPath: youtubeConfig.ffmpegPath,
     },
@@ -1624,6 +1633,7 @@ async function updateYoutubeSettings(req, res) {
     cameraLabel: body.cameraLabel,
     microphoneDeviceId: body.microphoneDeviceId,
     microphoneLabel: body.microphoneLabel,
+    microphoneGain: body.microphoneGain,
     streamResolution: body.streamResolution,
     ffmpegPath: body.ffmpegPath,
   });

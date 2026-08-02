@@ -274,6 +274,11 @@
                     <span>Mikrofon</span>
                     <select id="youtube-microphone"></select>
                   </label>
+                  <label class="wide range-field">
+                    <span>Mikrofon-Intensitaet <strong id="youtube-microphone-gain-value">100%</strong></span>
+                    <input id="youtube-microphone-gain" type="range" min="0" max="200" step="5" value="100" />
+                    <small class="field-hint">100% ist normal. Bei zu leisem Ton erhoehen, bei Uebersteuerung reduzieren.</small>
+                  </label>
                   <div class="youtube-actions">
                     <button type="button" class="ghost-button" data-action="youtube-save-settings">Speichern</button>
                     <button type="button" class="primary-button" data-action="youtube-connect">Mit YouTube verbinden</button>

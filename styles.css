@@ -734,6 +734,21 @@ h3 {
   display: none;
 }
 
+.range-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.range-field span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.range-field strong {
+  color: var(--accent-strong);
+}
+
 .youtube-actions {
   display: flex;
   grid-column: 1 / -1;

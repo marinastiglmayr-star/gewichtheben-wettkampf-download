@@ -224,6 +224,9 @@ let youtubeSourceMediaStream = null;
 let youtubeOverlayCanvasStream = null;
 let youtubeOverlayVideo = null;
 let youtubeOverlayFrameRequest = null;
+let youtubeAudioContext = null;
+let youtubeAudioGainNode = null;
+let youtubeAudioStream = null;
 let youtubeRecorder = null;
 let youtubeUploadChain = Promise.resolve();
 let youtubeDevicePermissionRequested = false;
@@ -341,6 +344,8 @@ function cacheElements() {
     youtubeFfmpegPath: $("#youtube-ffmpeg-path"),
     youtubeCamera: $("#youtube-camera"),
     youtubeMicrophone: $("#youtube-microphone"),
+    youtubeMicrophoneGain: $("#youtube-microphone-gain"),
+    youtubeMicrophoneGainValue: $("#youtube-microphone-gain-value"),
     youtubePreview: $("#youtube-preview"),
     youtubePreviewEmpty: $("#youtube-preview-empty"),
     youtubeStatusBox: $("#youtube-status-box"),
@@ -712,6 +717,12 @@ function handleClick(event) {
 
 function handleInput(event) {
   const input = event.target;
+
+  if (input === els.youtubeMicrophoneGain) {
+    updateYouTubeMicrophoneGainUi();
+    applyYouTubeMicrophoneGainFromForm();
+    return;
+  }
 
   if (input.id === "planned-next-weight") {
     const current = getCurrentAttempt();
@@ -2318,6 +2329,8 @@ function renderYouTubeSettings() {
     if (els.youtubeTitle) els.youtubeTitle.value = settings.titleTemplate || "{event}";
     if (els.youtubeResolution) els.youtubeResolution.value = settings.streamResolution || "720p";
     els.youtubeFfmpegPath.value = settings.ffmpegPath || "";
+    if (els.youtubeMicrophoneGain) els.youtubeMicrophoneGain.value = String(youtubeMicrophoneGainPercent(settings.microphoneGain));
+    updateYouTubeMicrophoneGainUi();
     renderYouTubeDeviceSelects(settings);
   }
   renderYouTubeTitlePreview();
@@ -2329,6 +2342,24 @@ function renderYouTubeTitlePreview() {
   if (!els.youtubeTitlePreview) return;
   const template = els.youtubeTitle?.value || youtubePayload().settings?.titleTemplate || "{event}";
   els.youtubeTitlePreview.textContent = `Aktueller YouTube-Name: ${formatYouTubeTitlePreview(template)}`;
+}
+
+function youtubeMicrophoneGainPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 100;
+  return Math.min(200, Math.max(0, Math.round(number)));
+}
+
+function updateYouTubeMicrophoneGainUi() {
+  if (!els.youtubeMicrophoneGain || !els.youtubeMicrophoneGainValue) return;
+  const percent = youtubeMicrophoneGainPercent(els.youtubeMicrophoneGain.value);
+  els.youtubeMicrophoneGain.value = String(percent);
+  els.youtubeMicrophoneGainValue.textContent = `${percent}%`;
+}
+
+function applyYouTubeMicrophoneGainFromForm() {
+  if (!youtubeAudioGainNode || !els.youtubeMicrophoneGain) return;
+  youtubeAudioGainNode.gain.value = youtubeMicrophoneGainPercent(els.youtubeMicrophoneGain.value) / 100;
 }
 
 function formatYouTubeTitlePreview(template) {
@@ -2420,6 +2451,10 @@ function renderYouTubeDeviceSelects(settings = {}) {
 function handleYouTubeFormChange(event) {
   saveYouTubeSettings({ silent: true, debounce: true });
   if (event.target === els.youtubeTitle || event.target === els.youtubePrivacy) renderYouTubeTitlePreview();
+  if (event.target === els.youtubeMicrophoneGain) {
+    updateYouTubeMicrophoneGainUi();
+    applyYouTubeMicrophoneGainFromForm();
+  }
   if (event.target === els.youtubeCamera) {
     window.setTimeout(() => startYouTubePreview(), 100);
   }
@@ -2440,6 +2475,7 @@ function collectYouTubeSettingsFromForm() {
     cameraLabel: cameraOption && cameraOption.value ? cameraOption.textContent : "",
     microphoneDeviceId: els.youtubeMicrophone?.value || "",
     microphoneLabel: micOption && micOption.value ? micOption.textContent : "",
+    microphoneGain: youtubeMicrophoneGainPercent(els.youtubeMicrophoneGain?.value),
   };
 }
 
@@ -2668,8 +2704,9 @@ async function startYouTubeMediaCapture(settings = {}) {
     sourceStream = await navigator.mediaDevices.getUserMedia(youtubeMediaConstraints(settings, { videoOnly: true }));
     showToast("Mikrofon konnte nicht gestartet werden. Livestream laeuft ohne Ton.");
   }
+  const adjustedStream = await createYouTubeAudioAdjustedStream(sourceStream, settings);
   youtubeSourceMediaStream = sourceStream;
-  youtubeMediaStream = await createYouTubeOverlayMediaStream(sourceStream);
+  youtubeMediaStream = await createYouTubeOverlayMediaStream(adjustedStream);
   setVideoElementStream(els.youtubePreview, youtubeMediaStream);
   renderTopCameraPreview();
   const mimeType = youtubeRecorderMimeType();
@@ -2694,6 +2731,34 @@ async function startYouTubeMediaCapture(settings = {}) {
   };
   youtubeRecorder.start(1000);
   startYouTubeMediaWatchdog(settings);
+}
+
+async function createYouTubeAudioAdjustedStream(sourceStream, settings = {}) {
+  const audioTracks = sourceStream?.getAudioTracks?.() || [];
+  if (!audioTracks.length || !window.AudioContext) return sourceStream;
+
+  try {
+    youtubeAudioContext = new AudioContext();
+    const source = youtubeAudioContext.createMediaStreamSource(new MediaStream(audioTracks));
+    youtubeAudioGainNode = youtubeAudioContext.createGain();
+    youtubeAudioGainNode.gain.value = youtubeMicrophoneGainPercent(settings.microphoneGain) / 100;
+    const destination = youtubeAudioContext.createMediaStreamDestination();
+    source.connect(youtubeAudioGainNode);
+    youtubeAudioGainNode.connect(destination);
+    youtubeAudioStream = destination.stream;
+
+    const output = new MediaStream();
+    sourceStream.getVideoTracks().forEach((track) => output.addTrack(track));
+    youtubeAudioStream.getAudioTracks().forEach((track) => output.addTrack(track));
+    return output;
+  } catch (error) {
+    console.warn(error);
+    youtubeAudioContext = null;
+    youtubeAudioGainNode = null;
+    youtubeAudioStream = null;
+    showToast("Mikrofon-Pegel konnte nicht angewendet werden. Stream nutzt normale Lautstaerke.");
+    return sourceStream;
+  }
 }
 
 async function createYouTubeOverlayMediaStream(sourceStream) {
@@ -3029,6 +3094,18 @@ function stopYouTubeOverlayRenderer() {
   }
 }
 
+function stopYouTubeAudioProcessor() {
+  if (youtubeAudioStream) {
+    youtubeAudioStream.getTracks().forEach((track) => track.stop());
+    youtubeAudioStream = null;
+  }
+  youtubeAudioGainNode = null;
+  if (youtubeAudioContext) {
+    youtubeAudioContext.close?.().catch?.(() => {});
+    youtubeAudioContext = null;
+  }
+}
+
 function youtubeRecorderMimeType() {
   const candidates = [
     "video/webm;codecs=vp8,opus",
@@ -3098,6 +3175,7 @@ function stopYouTubeMediaCapture() {
   }
   youtubeRecorder = null;
   stopYouTubeOverlayRenderer();
+  stopYouTubeAudioProcessor();
   const tracks = new Set();
   [youtubeMediaStream, youtubeSourceMediaStream].forEach((stream) => {
     stream?.getTracks?.().forEach((track) => tracks.add(track));
