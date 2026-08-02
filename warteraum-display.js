@@ -258,7 +258,7 @@ function renderOvertakeHint(current) {
   }
 
   $("#overtake-athlete").textContent = athlete.name || "Taktischer Hinweis";
-  $("#overtake-hint").textContent = isIwfMode() ? getIwfOvertakeHint(athlete) : getClubOvertakeHint(athlete);
+  $("#overtake-hint").textContent = isIwfMode() ? getIwfOvertakeHint(current) : getClubOvertakeHint(current);
 }
 
 function tacticalRows(rows, currentAthleteId) {
@@ -475,32 +475,137 @@ function calculateIwfAthleteResult(athlete) {
   };
 }
 
-function getClubOvertakeHint(athlete) {
-  const rows = getClubStandings(getRelevantAthletes());
-  const index = rows.findIndex((row) => row.athlete.id === athlete.id);
-  if (index < 0 || !rows[index]?.total) return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
-  if (index === 0) return "Aktuell ist in dieser Gruppe kein hoeherer Rang zu ueberholen.";
-  const previous = rows[index - 1];
-  if (!previous?.total || !Number.isFinite(previous.score) || !Number.isFinite(rows[index].score)) {
-    return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
+function getClubOvertakeHint(current) {
+  const athlete = current?.athlete;
+  if (!athlete) return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
+  if (athlete.outOfCompetition) return "AK-Start: Dieser Athlet hebt mit, wird aber nicht platziert.";
+  const classAthletes = getRelevantAthletes().filter((item) => !item.outOfCompetition && clubClassificationKey(item) === clubClassificationKey(athlete));
+  if (classAthletes.length <= 1) return "In dieser Wertungsklasse gibt es aktuell niemanden zu ueberholen.";
+
+  const currentWeight = parseAttemptWeight(current.weight);
+  const canProjectTotal = current.lift === "cleanJerk" || bestWeight(athlete, "cleanJerk") > 0;
+  if (canProjectTotal) {
+    const hint = getProjectedClubTotalHint(current, classAthletes, currentWeight);
+    if (hint) return hint;
   }
-  const needed = Math.max(0.1, roundScore(previous.score - rows[index].score + 0.1));
-  return `Zum Ueberholen benoetigt: +${formatScore(needed)} Punkte in der Gesamtwertung.`;
+  return getProjectedLiftHint(current, classAthletes, currentWeight, "Vereinswertung");
 }
 
-function getIwfOvertakeHint(athlete) {
-  const rows = getIwfStandings(getRelevantAthletes());
-  const sameClass = rows.filter((row) => row.classificationKey === iwfClassificationKey(athlete));
-  const index = sameClass.findIndex((row) => row.athlete.id === athlete.id);
-  if (index < 0) return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
-  const row = sameClass[index];
-  if (!row.hasValidTotal) return "Fuer den Total-Rang braucht der Athlet zuerst ein gueltiges Reissen und Stossen.";
-  if (index === 0) return "Aktuell ist in dieser IWF-Klasse kein hoeherer Rang zu ueberholen.";
-  const previous = sameClass[index - 1];
-  if (!previous?.hasValidTotal) return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
-  if (previous.total > row.total) return `Zum Ueberholen benoetigt: +${previous.total - row.total + 1} kg im Total.`;
-  if (previous.total === row.total) return "Bei gleichem Total zaehlt der frueher erreichte relevante Stossversuch.";
-  return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
+function getProjectedClubTotalHint(current, classAthletes, currentWeight) {
+  const athlete = current.athlete;
+  const rows = classAthletes
+    .map((item) => calculateClubScore(item))
+    .filter((row) => row.total || row.athlete.id === athlete.id)
+    .sort(compareClubRows);
+  const target = getNearestBetterRow(rows, athlete.id, (row) => row.total && Number.isFinite(row.score));
+  if (!target) return "Aktuell ist in dieser Wertungsklasse kein hoeherer Rang zu ueberholen.";
+  const candidate = findMinimumCandidateWeight(current, currentWeight, (weight) => {
+    const projected = calculateClubScore(athlete, current.lift, weight);
+    return projected.total && projected.score > target.score;
+  });
+  if (candidate === null) return `Zum Ueberholen werden mehr als ${formatKg(currentWeight + 100)} kg im aktuellen Versuch benoetigt.`;
+  if (candidate <= currentWeight) return `Aktuelles Gewicht reicht bei gueltigem Versuch, um ${target.athlete.name || "den naechsten Rang"} zu ueberholen.`;
+  return `Zum Ueberholen benoetigt: ${formatKg(candidate)} kg im aktuellen Versuch.`;
+}
+
+function getProjectedLiftHint(current, classAthletes, currentWeight, modeLabel) {
+  const athlete = current.athlete;
+  const lift = current.lift;
+  const rows = classAthletes
+    .map((item) => ({
+      athlete: item,
+      best: bestWeight(item, lift),
+      order: bestAttempt(item, lift)?.sequence || Number.MAX_SAFE_INTEGER,
+    }))
+    .filter((row) => row.best || row.athlete.id === athlete.id)
+    .sort((a, b) => {
+      if (a.best !== b.best) return b.best - a.best;
+      if (a.order !== b.order) return a.order - b.order;
+      return String(a.athlete.name).localeCompare(String(b.athlete.name), "de-DE");
+    });
+  const target = getNearestBetterRow(rows, athlete.id, (row) => row.best > 0);
+  if (!target) return `Aktuell ist in der ${LIFTS[lift].label}-Wertung kein hoeherer Rang zu ueberholen.`;
+  const needed = Math.max(currentWeight, target.best + 1);
+  if (needed <= currentWeight) return `Aktuelles Gewicht reicht bei gueltigem Versuch fuer den naechsten Rang in der ${LIFTS[lift].label}-Wertung.`;
+  return `${modeLabel}: Fuer den naechsten Rang in der ${LIFTS[lift].label}-Wertung werden ${formatKg(needed)} kg benoetigt.`;
+}
+
+function getIwfOvertakeHint(current) {
+  const athlete = current?.athlete;
+  if (!athlete) return "Taktischer Hinweis derzeit nicht eindeutig berechenbar.";
+  if (athlete.outOfCompetition) return "AK-Start: Dieser Athlet hebt mit, wird aber nicht platziert.";
+  const classAthletes = getRelevantAthletes().filter((item) => !item.outOfCompetition && iwfClassificationKey(item) === iwfClassificationKey(athlete));
+  if (classAthletes.length <= 1) return "In dieser IWF-Klasse gibt es aktuell niemanden zu ueberholen.";
+
+  const currentWeight = parseAttemptWeight(current.weight);
+  if (current.lift === "snatch") {
+    return getProjectedLiftHint(current, classAthletes, currentWeight, "IWF");
+  }
+
+  const rows = classAthletes
+    .map(calculateIwfAthleteResult)
+    .filter((row) => row.hasValidTotal || row.athlete.id === athlete.id)
+    .sort(compareIwfTotalRows);
+  const target = getNearestBetterRow(rows, athlete.id, (row) => row.hasValidTotal);
+  if (!target) return "Aktuell ist in dieser IWF-Klasse kein hoeherer Total-Rang zu ueberholen.";
+  const snatch = bestWeight(athlete, "snatch");
+  if (!snatch) return "Fuer den Total-Rang braucht der Athlet zuerst ein gueltiges Reissen.";
+  const needed = Math.max(currentWeight, target.total - snatch + 1);
+  if (needed <= currentWeight) return `Aktuelles Gewicht reicht bei gueltigem Versuch, um ${target.athlete.name || "den naechsten Rang"} im Total zu ueberholen.`;
+  return `Zum Ueberholen benoetigt: ${formatKg(needed)} kg im Stossen fuer ${formatKg(snatch + needed)} kg Total.`;
+}
+
+function calculateClubScore(athlete, projectedLift = null, projectedWeight = null) {
+  const snatch = Math.max(bestWeight(athlete, "snatch"), projectedLift === "snatch" ? projectedWeight : 0);
+  const cleanJerk = Math.max(bestWeight(athlete, "cleanJerk"), projectedLift === "cleanJerk" ? projectedWeight : 0);
+  const total = snatch && cleanJerk ? snatch + cleanJerk : 0;
+  const deduction = getRelativeDeduction(athlete);
+  const technique = getTechniqueTotal(athlete);
+  const relativeSnatch = snatch ? roundScore(snatch - deduction) : 0;
+  const relativeCleanJerk = cleanJerk ? roundScore(cleanJerk - deduction) : 0;
+  const relativeTotal = total ? roundScore(relativeSnatch + relativeCleanJerk) : 0;
+  const scoreBeforeAge = total ? roundScore(relativeTotal + technique) : 0;
+  const ageFactor = getAgeFactor(athlete);
+  return {
+    athlete,
+    snatch,
+    cleanJerk,
+    total,
+    score: total ? roundScore(scoreBeforeAge * ageFactor) : 0,
+  };
+}
+
+function compareClubRows(a, b) {
+  if (a.score !== b.score) return b.score - a.score;
+  if (a.total !== b.total) return b.total - a.total;
+  return String(a.athlete.name).localeCompare(String(b.athlete.name), "de-DE");
+}
+
+function getNearestBetterRow(rows, athleteId, isRankable) {
+  const index = rows.findIndex((row) => row.athlete.id === athleteId);
+  if (index < 0) return null;
+  for (let pointer = index - 1; pointer >= 0; pointer -= 1) {
+    if (isRankable(rows[pointer])) return rows[pointer];
+  }
+  return null;
+}
+
+function findMinimumCandidateWeight(current, startWeight, predicate) {
+  const start = Math.max(0, Number(startWeight) || 0);
+  for (let weight = start; weight <= start + 100; weight += 0.5) {
+    const rounded = Math.round(weight * 2) / 2;
+    if (predicate(rounded)) return rounded;
+  }
+  return null;
+}
+
+function clubClassificationKey(athlete) {
+  return [
+    getAthleteGroupId(athlete),
+    athlete?.gender || "",
+    normalizeAgeClass(athlete?.ageClass),
+    athlete?.weightClass || "",
+  ].join(":");
 }
 
 function compareIwfSnatchRows(a, b) {
@@ -725,6 +830,11 @@ function formatScore(value) {
 function parseInteger(value) {
   const parsed = Number.parseInt(String(value || "").trim(), 10);
   return Number.isInteger(parsed) ? parsed : null;
+}
+
+function parseAttemptWeight(value) {
+  const parsed = parseFloatSafe(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function parseFloatSafe(value) {
