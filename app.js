@@ -216,6 +216,7 @@ let serverSaveChain = Promise.resolve();
 let localWindowScreenAssignments = loadWindowScreenAssignments();
 let localScreens = [];
 let localScreenDetectionMessage = "";
+let localScreenDetailsWatcherStarted = false;
 let youtubeDevices = { cameras: [], microphones: [] };
 let youtubePreviewStream = null;
 let youtubeMediaStream = null;
@@ -444,6 +445,9 @@ function bindEvents() {
   document.body.addEventListener("click", handleClick);
   document.body.addEventListener("input", handleInput);
   document.body.addEventListener("change", handleChange);
+  window.addEventListener("focus", () => {
+    if (els.windowScreenDialog?.open) refreshLocalScreens({ notify: false });
+  });
 
   els.athleteGender.addEventListener("change", () => {
     renderAthleteBarHint();
@@ -3536,13 +3540,15 @@ async function assignDisplayRole(id, role) {
 }
 
 async function openWindowScreenDialog() {
-  await refreshLocalScreens({ notify: false });
+  localScreenDetectionMessage = "Bildschirme werden automatisch erkannt.";
   renderWindowScreenDialog();
   if (typeof els.windowScreenDialog.showModal === "function") {
     els.windowScreenDialog.showModal();
   } else {
     els.windowScreenDialog.setAttribute("open", "");
   }
+  await refreshLocalScreens({ notify: false });
+  startLocalScreenDetailsWatcher();
 }
 
 function closeWindowScreenDialog() {
@@ -3550,10 +3556,25 @@ function closeWindowScreenDialog() {
 }
 
 async function refreshLocalScreens(options = {}) {
+  localScreenDetectionMessage = "Bildschirme werden automatisch erkannt.";
+  renderWindowScreenDialog();
   localScreens = await detectLocalScreens();
   renderWindowScreenDialog();
   if (options.notify) {
     showToast(localScreens.length > 1 ? `${localScreens.length} Bildschirme erkannt.` : "Ein Bildschirm erkannt.");
+  }
+}
+
+async function startLocalScreenDetailsWatcher() {
+  if (localScreenDetailsWatcherStarted || !("getScreenDetails" in window)) return;
+  try {
+    const details = await window.getScreenDetails();
+    details.addEventListener?.("screenschange", () => {
+      if (els.windowScreenDialog?.open) refreshLocalScreens({ notify: false });
+    });
+    localScreenDetailsWatcherStarted = true;
+  } catch (error) {
+    // The next dialog open or refresh attempt can ask Chrome again.
   }
 }
 
