@@ -2915,7 +2915,7 @@ function getYouTubeAwardOverlayData() {
   const activeGroup = getActiveGroup();
   return {
     type: "pause",
-    eyebrow: "Preisverleihung",
+    eyebrow: "",
     title: "Preisverleihung",
     subtitle: activeGroup ? `Gruppe ${activeGroup.name}` : "Der Stream läuft weiter.",
   };
@@ -2963,9 +2963,14 @@ function drawYouTubeStreamOverlay(context, width, height, data) {
 
   let textY = y + padding + 12;
   context.textBaseline = "alphabetic";
-  context.fillStyle = "#83f3ff";
-  context.font = `800 ${Math.max(10, Math.round(boxWidth * 0.037))}px Arial, sans-serif`;
-  context.fillText(String(data.eyebrow || "").toUpperCase(), x + padding, textY);
+  const eyebrow = String(data.eyebrow || "").trim();
+  if (eyebrow) {
+    context.fillStyle = "#83f3ff";
+    context.font = `800 ${Math.max(10, Math.round(boxWidth * 0.037))}px Arial, sans-serif`;
+    context.fillText(eyebrow.toUpperCase(), x + padding, textY);
+  } else {
+    textY -= Math.round(padding * 0.35);
+  }
 
   if (data.type === "attempt") {
     const contentWidth = boxWidth - padding * 2;
