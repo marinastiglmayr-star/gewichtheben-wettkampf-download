@@ -151,13 +151,15 @@ function renderStandings() {
 
   const standingsTitle = $("#standings-title");
   if (standingsTitle) standingsTitle.textContent = "Wertung mit Abzug";
-  const standings = getStandings(state.athletes || []);
+  const standings = addClubClassPlaces(getStandings(state.athletes || []));
   const showAgeFactor = standings.some((row) => normalizeAgeClass(row.athlete.ageClass) === "masters");
   $("#standings-head").innerHTML = `
     <tr>
-      <th>Rang</th>
+      <th>Platz Klasse</th>
+      <th>Gesamtrang</th>
       <th>Name</th>
       <th>Gruppe</th>
+      <th>Gewichtsklasse</th>
       <th>R</th>
       <th>S</th>
       <th>ZK</th>
@@ -167,15 +169,17 @@ function renderStandings() {
       <th>Wertung</th>
     </tr>
   `;
-  const emptyColspan = 9 + (showAgeFactor ? 2 : 0);
+  const emptyColspan = 11 + (showAgeFactor ? 2 : 0);
   $("#standings-body").innerHTML =
     standings
       .map(
         (row, index) => `
           <tr>
+            <td>${formatResultPlace(row)}</td>
             <td>${row.outOfCompetition ? "AK" : row.rank || "-"}</td>
             <td>${renderAthleteName(row.athlete)}<br><span class="muted">${escapeHtml(row.athlete.team || "-")} / ${escapeHtml(teamNameById(row.athlete.teamId))}</span></td>
             <td>${escapeHtml(groupNameById(row.athlete.groupId))}</td>
+            <td>${escapeHtml(formatWeightClass(row.athlete.weightClass))}</td>
             <td>${row.snatch || "-"}</td>
             <td>${row.cleanJerk || "-"}</td>
             <td>${row.total || "DNF"}</td>
@@ -435,8 +439,9 @@ function getIwfRankMaps(athletes) {
   const rankableResults = results.filter((row) => !row.outOfCompetition);
   const byClass = new Map();
   for (const row of rankableResults) {
-    if (!byClass.has(row.classificationKey)) byClass.set(row.classificationKey, []);
-    byClass.get(row.classificationKey).push(row);
+    const key = `${row.athlete?.groupId || "none"}:${row.classificationKey}`;
+    if (!byClass.has(key)) byClass.set(key, []);
+    byClass.get(key).push(row);
   }
   const snatch = new Map();
   const cleanJerk = new Map();
@@ -753,6 +758,34 @@ function getAttemptRows() {
 function groupNameById(id) {
   const group = (state.groups || []).find((item) => item.id === id);
   return group?.name || "-";
+}
+
+function addClubClassPlaces(rows) {
+  const counters = new Map();
+  return (rows || []).map((row) => {
+    const key = [
+      row.athlete?.groupId || "none",
+      row.athlete?.gender || "none",
+      normalizeAgeClass(row.athlete?.ageClass),
+      row.athlete?.weightClass || "none",
+    ].join("|");
+    const placed = row.total && !row.outOfCompetition;
+    if (!placed) return { ...row, classPlace: null };
+    const nextPlace = (counters.get(key) || 0) + 1;
+    counters.set(key, nextPlace);
+    return { ...row, classPlace: nextPlace };
+  });
+}
+
+function formatResultPlace(row) {
+  if (row.outOfCompetition) return "AK";
+  return row.classPlace || "-";
+}
+
+function formatWeightClass(value) {
+  if (!value) return "-";
+  const text = String(value);
+  return text.startsWith("+") ? `${text} kg` : `-${text} kg`;
 }
 
 function formatScore(value) {

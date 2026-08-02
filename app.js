@@ -1227,6 +1227,8 @@ function saveWeighInFromForm(options = {}) {
   if (bodyweight === undefined || snatch === undefined || cleanJerk === undefined) return false;
 
   athlete.bodyweight = bodyweight;
+  const scaleWeightClass = weightClassForBodyweight(athlete.gender, athlete.ageClass, bodyweight);
+  if (scaleWeightClass) athlete.weightClass = scaleWeightClass;
   athlete.openers = { snatch, cleanJerk };
   if (state.meta.mode === "setup") {
     athlete.next = { snatch, cleanJerk };
@@ -4020,8 +4022,10 @@ function renderStandings() {
   if (els.standingsHead) {
     els.standingsHead.innerHTML = `
       <tr>
-        <th>Rang</th>
+        <th>Platz Klasse</th>
+        <th>Gesamtrang</th>
         <th>Athlet</th>
+        <th>Klasse</th>
         <th>R</th>
         <th>S</th>
         <th>Total</th>
@@ -4031,18 +4035,20 @@ function renderStandings() {
     `;
   }
 
-  const standings = getStandings(athletes);
+  const standings = addClubClassPlaces(getStandings(athletes));
 
   if (!standings.length) {
-    els.standingsTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine Wertung.</td></tr>`;
+    els.standingsTable.innerHTML = `<tr><td colspan="9" class="muted">Noch keine Wertung.</td></tr>`;
     return;
   }
 
   els.standingsTable.innerHTML = standings
     .map((row) => `
       <tr>
+        <td>${formatResultPlace(row)}</td>
         <td>${row.outOfCompetition ? "AK" : row.rank || "-"}</td>
         <td>${renderAthleteName(row.athlete)}<br><span class="muted">Gruppe ${escapeHtml(groupNameById(row.athlete.groupId))}</span></td>
+        <td>${escapeHtml(formatWeightClass(row.athlete.weightClass))}</td>
         <td>${row.snatch || "-"}</td>
         <td>${row.cleanJerk || "-"}</td>
         <td><strong>${row.total || "DNF"}</strong></td>
@@ -4579,7 +4585,7 @@ function getIwfRankMaps(athletes = state.athletes) {
   const rankableResults = results.filter((row) => !row.outOfCompetition);
   const byClass = new Map();
   for (const row of rankableResults) {
-    const key = row.classificationKey;
+    const key = `${row.athlete?.groupId || "none"}:${row.classificationKey}`;
     if (!byClass.has(key)) byClass.set(key, []);
     byClass.get(key).push(row);
   }
@@ -5085,6 +5091,20 @@ function getWeightClassOptions(gender, ageClass, categories = state?.categories 
   if (weightType === "child") return WEIGHT_CLASSES.child.child;
   const genderKey = weightClassType === "female" ? "female" : "male";
   return WEIGHT_CLASSES[weightType]?.[genderKey] || WEIGHT_CLASSES.senior[genderKey];
+}
+
+function weightClassForBodyweight(gender, ageClass, bodyweight, categories = state?.categories || DEFAULT_CATEGORIES) {
+  const value = parseFloatSafe(bodyweight);
+  const options = getWeightClassOptions(gender, ageClass, categories);
+  if (!Number.isFinite(value) || value <= 0 || !options.length) return "";
+  const plusClass = options.find((item) => String(item).startsWith("+")) || options[options.length - 1] || "";
+  const match = options.find((item) => {
+    const text = String(item);
+    if (text.startsWith("+")) return false;
+    const limit = Number(text);
+    return Number.isFinite(limit) && value <= limit + 0.0001;
+  });
+  return match || plusClass;
 }
 
 function defaultWeightClassForSelection() {
@@ -6363,8 +6383,8 @@ function buildIwfGroupResultSections() {
           <table>
             <thead>
               <tr>
-                <th>Platz Klasse</th>
-                <th>Rang</th>
+                <th>Platz in IWF-Klasse</th>
+                <th>Rang Total</th>
                 <th>Name</th>
                 <th>Verein</th>
                 <th>Mannschaft</th>
@@ -6479,8 +6499,8 @@ function buildGroupResultSections() {
           <table>
             <thead>
               <tr>
-                <th>Platz Klasse</th>
-                <th>Rang</th>
+                <th>Platz in Gewichtsklasse</th>
+                <th>Gesamtrang Gruppe</th>
                 <th>Name</th>
                 <th>Verein</th>
                 <th>Mannschaft</th>
@@ -6547,6 +6567,7 @@ function addClubClassPlaces(rows) {
   return (rows || []).map((row) => {
     const key = [
       row.athlete?.groupId || "none",
+      row.athlete?.gender || "none",
       normalizeAgeClass(row.athlete?.ageClass),
       row.athlete?.weightClass || "none",
     ].join("|");
@@ -6857,10 +6878,14 @@ function normalizeState(input) {
     };
     const gender = normalizeGender(athlete.gender, output.categories);
     const ageClass = normalizeAgeClass(athlete.ageClass);
+    const bodyweight = parseFloatSafe(athlete.bodyweight);
     const weightOptions = getWeightClassOptions(gender, ageClass, output.categories);
-    const weightClass = athlete.weightClass && weightOptions.includes(String(athlete.weightClass))
-      ? String(athlete.weightClass)
-      : weightOptions[0] || "";
+    const scaleWeightClass = weightClassForBodyweight(gender, ageClass, bodyweight, output.categories);
+    const weightClass =
+      scaleWeightClass ||
+      (athlete.weightClass && weightOptions.includes(String(athlete.weightClass))
+        ? String(athlete.weightClass)
+        : weightOptions[0] || "");
 
     return {
       id: athlete.id || createId(),
@@ -6875,7 +6900,7 @@ function normalizeState(input) {
       weightClass,
       barWeight: parseFloatSafe(athlete.barWeight) || getCategory(gender, output.categories).barWeight,
       lotNo: parseInteger(athlete.lotNo) || parseInteger(athlete.startNo) || index + 1,
-      bodyweight: parseFloatSafe(athlete.bodyweight),
+      bodyweight,
       entryTotal: parseInteger(athlete.entryTotal),
       outOfCompetition: Boolean(athlete.outOfCompetition),
       openers,

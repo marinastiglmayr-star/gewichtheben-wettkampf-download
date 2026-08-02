@@ -253,6 +253,7 @@ function loadSelectedAthlete() {
   els.athleteSummary.innerHTML = `
     <div><span>Name</span><strong>${escapeHtml(athlete.name)}</strong></div>
     <div><span>Gruppe</span><strong>${escapeHtml(groupNameById(athlete.groupId))}</strong></div>
+    <div><span>Gewichtsklasse</span><strong>${escapeHtml(formatWeightClass(athlete.weightClass))}</strong></div>
     <div><span>Verein</span><strong>${escapeHtml(athlete.team || "-")}</strong></div>
     <div><span>Status</span><strong>${athlete.withdrawn ? "fehlend" : "anwesend"}</strong></div>
   `;
@@ -346,6 +347,12 @@ function getAthleteGroupId(athlete) {
 
 function groupNameById(id) {
   return getOrderedGroups().find((group) => group.id === id)?.name || "-";
+}
+
+function formatWeightClass(value) {
+  if (!value) return "-";
+  const text = String(value);
+  return text.startsWith("+") ? `${text} kg` : `-${text} kg`;
 }
 
 function hasAnyRecordedAttempt(athlete) {

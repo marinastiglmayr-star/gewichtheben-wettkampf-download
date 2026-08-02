@@ -779,6 +779,8 @@ async function updateWeighAthleteData(req, res) {
   }
 
   athlete.bodyweight = bodyweight;
+  const scaleWeightClass = weightClassForBodyweight(athlete.gender, athlete.ageClass, bodyweight);
+  if (scaleWeightClass) athlete.weightClass = scaleWeightClass;
   athlete.openers = athlete.openers || { snatch: null, cleanJerk: null };
   athlete.openers.snatch = snatch;
   athlete.openers.cleanJerk = cleanJerk;
@@ -2590,11 +2592,14 @@ function normalizeState(input) {
     };
     const gender = normalizeGender(athlete.gender, next.categories);
     const ageClass = normalizeAgeClass(athlete.ageClass);
+    const bodyweight = parseFloatSafe(athlete.bodyweight);
     const weightOptions = getWeightClassOptions(gender, ageClass, next.categories);
+    const scaleWeightClass = weightClassForBodyweight(gender, ageClass, bodyweight, next.categories);
     const weightClass =
-      athlete.weightClass && weightOptions.includes(String(athlete.weightClass))
+      scaleWeightClass ||
+      (athlete.weightClass && weightOptions.includes(String(athlete.weightClass))
         ? String(athlete.weightClass)
-        : weightOptions[0] || "";
+        : weightOptions[0] || "");
     return {
       id: athlete.id || crypto.randomUUID(),
       name: String(athlete.name || `Athlet ${index + 1}`),
@@ -2608,7 +2613,7 @@ function normalizeState(input) {
       weightClass,
       barWeight: parseFloatSafe(athlete.barWeight) || getCategory(gender, next.categories).barWeight,
       lotNo: parseInteger(athlete.lotNo) || parseInteger(athlete.startNo) || index + 1,
-      bodyweight: parseFloatSafe(athlete.bodyweight),
+      bodyweight,
       entryTotal: parseInteger(athlete.entryTotal),
       outOfCompetition: Boolean(athlete.outOfCompetition),
       openers,
@@ -2788,6 +2793,20 @@ function getWeightClassOptions(gender, ageClass, categories = state?.categories 
   if (weightType === "child") return WEIGHT_CLASSES.child.child;
   const genderKey = weightClassType === "female" ? "female" : "male";
   return WEIGHT_CLASSES[weightType]?.[genderKey] || WEIGHT_CLASSES.senior[genderKey];
+}
+
+function weightClassForBodyweight(gender, ageClass, bodyweight, categories = state?.categories || DEFAULT_CATEGORIES) {
+  const value = parseFloatSafe(bodyweight);
+  const options = getWeightClassOptions(gender, ageClass, categories);
+  if (!Number.isFinite(value) || value <= 0 || !options.length) return "";
+  const plusClass = options.find((item) => String(item).startsWith("+")) || options[options.length - 1] || "";
+  const match = options.find((item) => {
+    const text = String(item);
+    if (text.startsWith("+")) return false;
+    const limit = Number(text);
+    return Number.isFinite(limit) && value <= limit + 0.0001;
+  });
+  return match || plusClass;
 }
 
 function normalizePlates(input) {
