@@ -1,6 +1,7 @@
 "use strict";
 
 const STORE_KEY = "gewichtheben-wettkampf-v1";
+const ATHLETE_CATALOG_KEY = "gewichtheben-athleten-stammliste-v1";
 const CONTROL_CLIENT_KEY = "gewichtheben-wettkampf-control-client";
 const WINDOW_SCREEN_ASSIGNMENTS_KEY = "gewichtheben-window-screen-assignments";
 
@@ -196,6 +197,8 @@ const emptyState = () => ({
 
 let state = emptyState();
 let editingAthleteId = null;
+let athleteCatalog = loadAthleteCatalog();
+let athleteCatalogSelection = new Set();
 let judgeDraft = { key: null, votes: [null, null, null] };
 let techniqueDraft = { key: null, points: [null, null, null] };
 let plannedNextDraft = { key: null, weight: null };
@@ -368,6 +371,11 @@ function cacheElements() {
     athleteOutOfCompetition: $("#athlete-out-of-competition"),
     saveAthlete: $("#save-athlete"),
     cancelEdit: $("#cancel-edit"),
+    athleteCatalogDialog: $("#athlete-catalog-dialog"),
+    athleteCatalogSearchName: $("#athlete-catalog-search-name"),
+    athleteCatalogSearchTeam: $("#athlete-catalog-search-team"),
+    athleteCatalogList: $("#athlete-catalog-list"),
+    athleteCatalogCount: $("#athlete-catalog-count"),
     competitionStartDialog: $("#competition-start-dialog"),
     weighInDialog: $("#weigh-in-dialog"),
     weighInForm: $("#weigh-in-form"),
@@ -615,6 +623,7 @@ function shouldDeferRenderForActiveInput() {
     Boolean(active.closest?.("#backup-dialog")) ||
     Boolean(active.closest?.("#display-routing-dialog")) ||
     Boolean(active.closest?.("#window-screen-dialog")) ||
+    Boolean(active.closest?.("#athlete-catalog-dialog")) ||
     Boolean(active.closest?.("#relative-dialog")) ||
     Boolean(active.closest?.("#plates-dialog")) ||
     Boolean(active.closest?.("#category-dialog")) ||
@@ -656,6 +665,11 @@ function handleClick(event) {
   if (action === "guided-start-competition") requestCompetitionStart();
   if (action === "confirm-start-with-stream") confirmCompetitionStart(true);
   if (action === "confirm-start-without-stream") confirmCompetitionStart(false);
+  if (action === "open-athlete-catalog") openAthleteCatalogDialog();
+  if (action === "close-athlete-catalog") closeAthleteCatalogDialog();
+  if (action === "catalog-save-current-athletes") saveCurrentAthletesToCatalog();
+  if (action === "apply-athlete-catalog") applyAthleteCatalogSelection();
+  if (action === "delete-catalog-athlete") deleteCatalogAthlete(id);
   if (action === "cancel-edit") clearAthleteForm();
   if (action === "close-weigh-in") closeWeighInDialog();
   if (action === "weigh-prev") moveWeighInSelection(-1);
@@ -743,6 +757,11 @@ function handleInput(event) {
     return;
   }
 
+  if (input === els.athleteCatalogSearchName || input === els.athleteCatalogSearchTeam) {
+    renderAthleteCatalogList();
+    return;
+  }
+
   const groupInput = input.closest("[data-group-field]");
   if (groupInput) {
     updateGroupField(groupInput);
@@ -809,6 +828,14 @@ function handleChange(event) {
 
   if (event.target === els.weighAthlete) {
     loadWeighInAthlete(els.weighAthlete.value);
+    return;
+  }
+
+  const catalogCheckbox = event.target.closest("[data-catalog-select]");
+  if (catalogCheckbox) {
+    if (catalogCheckbox.checked) athleteCatalogSelection.add(catalogCheckbox.dataset.id);
+    else athleteCatalogSelection.delete(catalogCheckbox.dataset.id);
+    renderAthleteCatalogCount();
     return;
   }
 
@@ -922,19 +949,22 @@ function saveAthleteFromForm() {
     const athlete = findAthlete(editingAthleteId);
     if (!athlete) return;
     Object.assign(athlete, payload);
+    athlete.catalogKey = upsertCatalogAthleteFromAthlete(athlete);
     if (state.meta.mode === "setup") {
       athlete.attempts = athlete.attempts || { snatch: [], cleanJerk: [] };
       athlete.next = { snatch: payload.openers.snatch, cleanJerk: payload.openers.cleanJerk };
     }
   } else {
-    state.athletes.push({
+    const athlete = {
       id: createId(),
       ...payload,
       withdrawn: false,
       next: { snatch: payload.openers.snatch, cleanJerk: payload.openers.cleanJerk },
       nextChangeCounts: {},
       attempts: { snatch: [], cleanJerk: [] },
-    });
+    };
+    athlete.catalogKey = upsertCatalogAthleteFromAthlete(athlete);
+    state.athletes.push(athlete);
   }
 
   sortAthletes();
@@ -1168,6 +1198,249 @@ function clearAthleteForm() {
   els.saveAthlete.textContent = "Athlet hinzufügen";
   els.cancelEdit.classList.add("hidden");
   renderAthleteBarHint();
+}
+
+function openAthleteCatalogDialog() {
+  athleteCatalog = loadAthleteCatalog();
+  athleteCatalogSelection = new Set(
+    athleteCatalog.filter((catalogAthlete) => findCompetitionAthleteForCatalog(catalogAthlete)).map((catalogAthlete) => catalogAthlete.id),
+  );
+  if (els.athleteCatalogSearchName) els.athleteCatalogSearchName.value = "";
+  if (els.athleteCatalogSearchTeam) els.athleteCatalogSearchTeam.value = "";
+  renderAthleteCatalogList();
+  if (typeof els.athleteCatalogDialog.showModal === "function") {
+    els.athleteCatalogDialog.showModal();
+  } else {
+    els.athleteCatalogDialog.setAttribute("open", "");
+  }
+  els.athleteCatalogSearchName?.focus();
+}
+
+function closeAthleteCatalogDialog() {
+  els.athleteCatalogDialog?.close?.();
+  els.athleteCatalogDialog?.removeAttribute?.("open");
+}
+
+function renderAthleteCatalogList() {
+  if (!els.athleteCatalogList) return;
+  const nameFilter = normalizeSearchText(els.athleteCatalogSearchName?.value);
+  const teamFilter = normalizeSearchText(els.athleteCatalogSearchTeam?.value);
+  const rows = athleteCatalog
+    .filter((athlete) => !nameFilter || normalizeSearchText(athlete.name).includes(nameFilter))
+    .filter((athlete) => !teamFilter || normalizeSearchText(athlete.team).includes(teamFilter))
+    .sort((a, b) => {
+      const teamCompare = String(a.team || "").localeCompare(String(b.team || ""), "de-DE", { numeric: true });
+      return teamCompare || String(a.name || "").localeCompare(String(b.name || ""), "de-DE", { numeric: true });
+    });
+
+  renderAthleteCatalogCount(rows.length);
+  if (!rows.length) {
+    els.athleteCatalogList.innerHTML = `
+      <div class="empty-catalog">
+        <strong>Keine Athleten gefunden.</strong>
+        <p class="muted">Speichere zuerst Athleten oder nutze „Aktuelle Startliste merken“.</p>
+      </div>
+    `;
+    return;
+  }
+
+  els.athleteCatalogList.innerHTML = rows
+    .map((athlete) => {
+      const checked = athleteCatalogSelection.has(athlete.id) ? "checked" : "";
+      const linkedAthlete = findCompetitionAthleteForCatalog(athlete);
+      return `
+        <article class="athlete-catalog-row">
+          <label class="catalog-select">
+            <input type="checkbox" data-catalog-select data-id="${athlete.id}" ${checked} />
+            <span>${checked ? "ausgewählt" : "auswählen"}</span>
+          </label>
+          <div class="catalog-athlete-main">
+            <strong>${escapeHtml(athlete.name || "-")}</strong>
+            <p>${escapeHtml(athlete.team || "ohne Verein")} · ${escapeHtml(genderLabel(athlete.gender))} · ${escapeHtml(ageClassLabel(athlete.ageClass))}</p>
+          </div>
+          <div class="catalog-athlete-meta">
+            <span>${athlete.birthYear || "Jahrgang -"}</span>
+            <span>${escapeHtml(formatWeightClass(athlete.weightClass))}</span>
+            <span>${athlete.entryTotal ? `${athlete.entryTotal} kg gemeldet` : "ZK -"}</span>
+            <span>${linkedAthlete ? "im Wettkampf" : "nicht übernommen"}</span>
+          </div>
+          <button type="button" class="mini-button" data-action="delete-catalog-athlete" data-id="${athlete.id}">Entfernen</button>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderAthleteCatalogCount(filteredCount = null) {
+  if (!els.athleteCatalogCount) return;
+  const shown = filteredCount ?? athleteCatalog.length;
+  els.athleteCatalogCount.textContent = `${shown} angezeigt · ${athleteCatalogSelection.size} ausgewählt`;
+}
+
+function saveCurrentAthletesToCatalog() {
+  state.athletes.forEach((athlete) => {
+    athlete.catalogKey = upsertCatalogAthleteFromAthlete(athlete);
+    if (athlete.catalogKey) athleteCatalogSelection.add(athlete.catalogKey);
+  });
+  saveState();
+  renderAthleteCatalogList();
+  showToast("Aktuelle Startliste wurde in der Athletenliste gespeichert.");
+}
+
+function applyAthleteCatalogSelection() {
+  let added = 0;
+  let removed = 0;
+  let protectedCount = 0;
+  const selectedIds = new Set(athleteCatalogSelection);
+
+  for (const catalogAthlete of athleteCatalog) {
+    const existing = findCompetitionAthleteForCatalog(catalogAthlete);
+    if (selectedIds.has(catalogAthlete.id)) {
+      if (!existing) {
+        state.athletes.push(createAthleteFromCatalog(catalogAthlete));
+        added += 1;
+      } else if (!existing.catalogKey) {
+        existing.catalogKey = catalogAthlete.id;
+      }
+      continue;
+    }
+
+    if (existing?.catalogKey === catalogAthlete.id) {
+      if (hasAnyRecordedAttempt(existing)) {
+        protectedCount += 1;
+      } else {
+        state.athletes = state.athletes.filter((athlete) => athlete.id !== existing.id);
+        removed += 1;
+      }
+    }
+  }
+
+  sortAthletes();
+  saveState();
+  clearAthleteForm();
+  render();
+  renderAthleteCatalogList();
+  closeAthleteCatalogDialog();
+  const notes = [`${added} übernommen`, `${removed} entfernt`];
+  if (protectedCount) notes.push(`${protectedCount} mit Versuchen behalten`);
+  showToast(`Athletenliste aktualisiert: ${notes.join(", ")}.`);
+}
+
+function deleteCatalogAthlete(id) {
+  const athlete = athleteCatalog.find((item) => item.id === id);
+  if (!athlete) return;
+  if (findCompetitionAthleteForCatalog(athlete) && !window.confirm(`${athlete.name} ist im aktuellen Wettkampf. Nur aus der Stammliste entfernen?`)) return;
+  athleteCatalog = athleteCatalog.filter((item) => item.id !== id);
+  athleteCatalogSelection.delete(id);
+  saveAthleteCatalog();
+  renderAthleteCatalogList();
+}
+
+function upsertCatalogAthleteFromAthlete(athlete) {
+  const payload = athleteCatalogPayload(athlete);
+  const existing =
+    athleteCatalog.find((item) => item.id === athlete.catalogKey) ||
+    athleteCatalog.find((item) => catalogIdentityKey(item) === catalogIdentityKey(payload));
+  if (existing) {
+    Object.assign(existing, payload, { id: existing.id, updatedAt: new Date().toISOString() });
+    saveAthleteCatalog();
+    return existing.id;
+  }
+  const item = { id: createId(), ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  athleteCatalog.push(item);
+  saveAthleteCatalog();
+  return item.id;
+}
+
+function athleteCatalogPayload(athlete) {
+  return {
+    name: String(athlete?.name || "").trim(),
+    team: String(athlete?.team || "").trim(),
+    teamId: String(athlete?.teamId || ""),
+    gender: normalizeGender(athlete?.gender),
+    ageClass: normalizeAgeClass(athlete?.ageClass),
+    birthYear: parseOptionalBirthYear(athlete?.birthYear),
+    weightClass: athlete?.weightClass || "",
+    entryTotal: parseInteger(athlete?.entryTotal),
+    outOfCompetition: Boolean(athlete?.outOfCompetition),
+  };
+}
+
+function createAthleteFromCatalog(catalogAthlete) {
+  const gender = normalizeGender(catalogAthlete.gender);
+  const ageClass = normalizeAgeClass(catalogAthlete.ageClass);
+  const weightClass = catalogAthlete.weightClass || defaultWeightClassForAthlete(gender, ageClass);
+  const startNo = nextStartNumber();
+  return {
+    id: createId(),
+    catalogKey: catalogAthlete.id,
+    name: catalogAthlete.name || `Athlet ${startNo}`,
+    team: catalogAthlete.team || "",
+    teamId: getTeam(catalogAthlete.teamId) ? catalogAthlete.teamId : "",
+    startNo,
+    groupId: getOrderedGroups()[0]?.id || "group-a",
+    gender,
+    ageClass,
+    birthYear: parseOptionalBirthYear(catalogAthlete.birthYear),
+    weightClass,
+    barWeight: barWeightForGender(gender),
+    lotNo: startNo,
+    bodyweight: null,
+    entryTotal: parseInteger(catalogAthlete.entryTotal),
+    outOfCompetition: Boolean(catalogAthlete.outOfCompetition),
+    openers: { snatch: null, cleanJerk: null },
+    withdrawn: false,
+    next: { snatch: null, cleanJerk: null },
+    nextChangeCounts: {},
+    attempts: { snatch: [], cleanJerk: [] },
+  };
+}
+
+function findCompetitionAthleteForCatalog(catalogAthlete) {
+  return (
+    state.athletes.find((athlete) => athlete.catalogKey === catalogAthlete.id) ||
+    state.athletes.find((athlete) => catalogIdentityKey(athlete) === catalogIdentityKey(catalogAthlete))
+  );
+}
+
+function loadAthleteCatalog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ATHLETE_CATALOG_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeCatalogAthlete).filter((athlete) => athlete.name);
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveAthleteCatalog() {
+  localStorage.setItem(ATHLETE_CATALOG_KEY, JSON.stringify(athleteCatalog.map(normalizeCatalogAthlete)));
+}
+
+function normalizeCatalogAthlete(input) {
+  const payload = athleteCatalogPayload(input || {});
+  return {
+    id: input?.id || createId(),
+    ...payload,
+    createdAt: input?.createdAt || new Date().toISOString(),
+    updatedAt: input?.updatedAt || input?.createdAt || new Date().toISOString(),
+  };
+}
+
+function catalogIdentityKey(athlete) {
+  return [normalizeSearchText(athlete?.name), normalizeSearchText(athlete?.team), parseOptionalBirthYear(athlete?.birthYear) || ""].join("|");
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("de-DE")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function defaultWeightClassForAthlete(gender, ageClass) {
+  return getWeightClassOptions(gender, ageClass)[0] || defaultWeightClassForSelection();
 }
 
 function openWeighInDialog(selectedId = null) {
@@ -1456,7 +1729,7 @@ function startAwardCeremony() {
   state.meta.attemptTimer = null;
   saveState();
   render();
-  showToast("Preisverleihung im Stream angezeigt.");
+  showToast("Siegerehrung im Stream angezeigt.");
 }
 
 function resetCompetition() {
@@ -2916,7 +3189,7 @@ function getYouTubeAwardOverlayData() {
   return {
     type: "pause",
     eyebrow: "",
-    title: "Preisverleihung",
+    title: "Siegerehrung",
     subtitle: activeGroup ? `Gruppe ${activeGroup.name}` : "Der Stream läuft weiter.",
   };
 }
@@ -3361,7 +3634,7 @@ function renderCompetition() {
       : state.meta.mode === "snatchComplete"
         ? "Reißen abgeschlossen"
       : awardActive
-        ? "Preisverleihung"
+        ? "Siegerehrung"
       : state.meta.mode === "groupComplete"
         ? "Gruppe abgeschlossen"
         : `Wettkampf · ${groupLabel}`;
@@ -3371,7 +3644,7 @@ function renderCompetition() {
       : state.meta.mode === "snatchComplete"
         ? "Reißen aller Gruppen abgeschlossen"
       : awardActive
-        ? `${groupLabel}: Preisverleihung`
+        ? `${groupLabel}: Siegerehrung`
       : state.meta.mode === "groupComplete"
         ? `${groupLabel} abgeschlossen`
       : state.meta.breakPending
@@ -3870,17 +4143,17 @@ function renderCurrentAttempt() {
       <div class="current-grid">
         <div class="current-lifter">
           <p class="eyebrow">${escapeHtml(activeGroupLabel)}</p>
-          <h2>${awardActive ? "Preisverleihung" : `${liftLabel} abgeschlossen`}</h2>
+          <h2>${awardActive ? "Siegerehrung" : `${liftLabel} abgeschlossen`}</h2>
           <p class="muted">${
             awardActive
-              ? "Der Stream läuft weiter und zeigt die Preisverleihung. Die nächste Gruppe startet erst nach Klick auf den Start-Button."
+              ? "Der Stream läuft weiter und zeigt die Siegerehrung. Die nächste Gruppe startet erst nach Klick auf den Start-Button."
               : "Der Stream zeigt Pause, bis der nächste Abschnitt gestartet wird."
           }</p>
         </div>
         <div class="decision-strip">
           <span class="decision-label">${nextGroup ? `Nächste Gruppe: ${escapeHtml(nextGroup.name)}` : "Abschnitt fertig"}</span>
           <div class="form-actions">
-            ${lift === "cleanJerk" ? `<button type="button" class="ghost-button ${awardActive ? "active" : ""}" data-action="start-award-ceremony">Preisverleihung einleiten</button>` : ""}
+            ${lift === "cleanJerk" ? `<button type="button" class="ghost-button ${awardActive ? "active" : ""}" data-action="start-award-ceremony">Siegerehrung einleiten</button>` : ""}
             ${
               nextGroup
                 ? `<button type="button" class="primary-button" data-action="start-next-group">Nächste Gruppe starten</button>`
@@ -7176,6 +7449,7 @@ function normalizeState(input) {
 
     return {
       id: athlete.id || createId(),
+      catalogKey: String(athlete.catalogKey || ""),
       name: String(athlete.name || `Athlet ${index + 1}`),
       team: String(athlete.team || ""),
       teamId: teamIds.has(athlete.teamId) ? athlete.teamId : "",

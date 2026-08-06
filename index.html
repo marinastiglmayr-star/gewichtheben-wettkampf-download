@@ -358,6 +358,9 @@
           </section>
           <div class="form-actions form-actions-full">
             <button type="submit" class="primary-button" id="save-athlete">Athlet hinzufügen</button>
+            <button type="button" class="ghost-button" data-action="open-athlete-catalog">
+              Athletenliste
+            </button>
             <button type="button" class="ghost-button hidden" id="cancel-edit" data-action="cancel-edit">
               Abbrechen
             </button>
@@ -689,6 +692,38 @@
       <div class="start-stream-actions" aria-label="Wettkampfstart auswaehlen">
         <button type="button" class="primary-button" data-action="confirm-start-with-stream">Mit Stream starten</button>
         <button type="button" class="ghost-button" data-action="confirm-start-without-stream">Ohne Stream starten</button>
+      </div>
+    </dialog>
+
+    <dialog id="athlete-catalog-dialog" class="relative-dialog wide-dialog athlete-catalog-dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Athletenliste</p>
+          <h2>Stammdaten ausw&auml;hlen</h2>
+        </div>
+        <button type="button" class="ghost-button" data-action="close-athlete-catalog">Schlie&szlig;en</button>
+      </div>
+      <p class="muted dialog-copy">
+        Dauerhaft gespeicherte Athleten k&ouml;nnen hier nach Name und Verein gefiltert und per Haken in den aktuellen Wettkampf &uuml;bernommen werden.
+      </p>
+      <div class="athlete-catalog-filters">
+        <label>
+          <span>Name filtern</span>
+          <input id="athlete-catalog-search-name" type="search" placeholder="Name" />
+        </label>
+        <label>
+          <span>Verein filtern</span>
+          <input id="athlete-catalog-search-team" type="search" placeholder="Verein" />
+        </label>
+      </div>
+      <div class="athlete-catalog-toolbar">
+        <span id="athlete-catalog-count" class="muted">0 Athleten</span>
+        <button type="button" class="ghost-button" data-action="catalog-save-current-athletes">Aktuelle Startliste merken</button>
+      </div>
+      <div id="athlete-catalog-list" class="athlete-catalog-list"></div>
+      <div class="form-actions dialog-actions">
+        <button type="button" class="ghost-button" data-action="close-athlete-catalog">Abbrechen</button>
+        <button type="button" class="primary-button" data-action="apply-athlete-catalog">Auswahl &uuml;bernehmen</button>
       </div>
     </dialog>
 

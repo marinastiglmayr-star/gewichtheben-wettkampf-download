@@ -2614,6 +2614,7 @@ function normalizeState(input) {
         : weightOptions[0] || "");
     return {
       id: athlete.id || crypto.randomUUID(),
+      catalogKey: String(athlete.catalogKey || ""),
       name: String(athlete.name || `Athlet ${index + 1}`),
       team: String(athlete.team || ""),
       teamId: teamIds.has(athlete.teamId) ? athlete.teamId : "",
