@@ -43,12 +43,12 @@ const AGE_CLASSES = [
 
 const WEIGHT_CLASSES = {
   senior: {
-    male: ["60", "65", "71", "79", "88", "94", "110", "+110"],
-    female: ["48", "53", "58", "63", "69", "77", "86", "+86"],
+    male: ["60", "65", "70", "75", "85", "95", "110", "+110"],
+    female: ["49", "53", "57", "61", "69", "77", "86", "+86"],
   },
   youth: {
-    male: ["56", "60", "65", "71", "79", "88", "94", "+94"],
-    female: ["44", "48", "53", "58", "63", "69", "77", "+77"],
+    male: ["55", "60", "65", "70", "75", "85", "95", "+95"],
+    female: ["45", "49", "53", "57", "61", "69", "77", "+77"],
   },
   child: {
     child: ["35", "40", "45", "49", "55", "59", "64", "69", "73", "+73"],
@@ -115,12 +115,12 @@ const IWF_LOGO_SRC = "assets/iwf-logo.svg";
 const MAX_WAITING_ROOM_CHANGES = 2;
 const IWF_BODYWEIGHT_CATEGORIES = {
   senior: {
-    female: [48, 53, 58, 63, 69, 77, 86],
-    male: [60, 65, 71, 79, 88, 94, 110],
+    female: [49, 53, 57, 61, 69, 77, 86],
+    male: [60, 65, 70, 75, 85, 95, 110],
   },
   youth: {
-    female: [44, 48, 53, 58, 63, 69, 77],
-    male: [56, 60, 65, 71, 79, 88, 94],
+    female: [45, 49, 53, 57, 61, 69, 77],
+    male: [55, 60, 65, 70, 75, 85, 95],
   },
 };
 const IWF_AGE_GROUP_LABELS = {
@@ -1369,7 +1369,7 @@ function athleteCatalogPayload(athlete) {
 function createAthleteFromCatalog(catalogAthlete) {
   const gender = normalizeGender(catalogAthlete.gender);
   const ageClass = normalizeAgeClass(catalogAthlete.ageClass);
-  const weightClass = catalogAthlete.weightClass || defaultWeightClassForAthlete(gender, ageClass);
+  const weightClass = normalizeWeightClassSelection(gender, ageClass, catalogAthlete.weightClass);
   const startNo = nextStartNumber();
   return {
     id: createId(),
@@ -1437,10 +1437,6 @@ function normalizeSearchText(value) {
     .toLocaleLowerCase("de-DE")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-}
-
-function defaultWeightClassForAthlete(gender, ageClass) {
-  return getWeightClassOptions(gender, ageClass)[0] || defaultWeightClassForSelection();
 }
 
 function openWeighInDialog(selectedId = null) {
@@ -5667,6 +5663,21 @@ function weightClassForBodyweight(gender, ageClass, bodyweight, categories = sta
   return match || plusClass;
 }
 
+function normalizeWeightClassSelection(gender, ageClass, weightClass, categories = state?.categories || DEFAULT_CATEGORIES) {
+  const options = getWeightClassOptions(gender, ageClass, categories);
+  if (!options.length) return "";
+  const raw = String(weightClass || "")
+    .trim()
+    .replace(/^-/g, "")
+    .replace(/\s*kg$/i, "");
+  if (options.includes(raw)) return raw;
+  if (raw.startsWith("+")) return options.find((item) => String(item).startsWith("+")) || options[options.length - 1] || "";
+  const numeric = parseFloatSafe(raw);
+  return Number.isFinite(numeric) && numeric > 0
+    ? weightClassForBodyweight(gender, ageClass, numeric, categories) || options[0] || ""
+    : options[0] || "";
+}
+
 function defaultWeightClassForSelection() {
   return getWeightClassOptions(els.athleteGender?.value, els.athleteAgeClass?.value)[0] || "";
 }
@@ -5798,8 +5809,7 @@ function resetCategories() {
   state.athletes.forEach((athlete) => {
     athlete.gender = normalizeGender(athlete.gender);
     athlete.barWeight = barWeightForGender(athlete.gender);
-    const options = getWeightClassOptions(athlete.gender, athlete.ageClass);
-    if (!options.includes(athlete.weightClass)) athlete.weightClass = options[0] || "";
+    athlete.weightClass = normalizeWeightClassSelection(athlete.gender, athlete.ageClass, athlete.weightClass);
   });
   saveState();
   renderCategorySettings();
@@ -5820,8 +5830,7 @@ function updateCategoryField(input, options = { save: true }) {
     .filter((athlete) => athlete.gender === category.id)
     .forEach((athlete) => {
       athlete.barWeight = category.barWeight;
-      const options = getWeightClassOptions(category.id, athlete.ageClass);
-      if (!options.includes(athlete.weightClass)) athlete.weightClass = options[0] || "";
+      athlete.weightClass = normalizeWeightClassSelection(category.id, athlete.ageClass, athlete.weightClass);
     });
   if (options.save) {
     category.label = category.label.trim() || "Kategorie";
@@ -7439,13 +7448,9 @@ function normalizeState(input) {
     const gender = normalizeGender(athlete.gender, output.categories);
     const ageClass = normalizeAgeClass(athlete.ageClass);
     const bodyweight = parseFloatSafe(athlete.bodyweight);
-    const weightOptions = getWeightClassOptions(gender, ageClass, output.categories);
     const scaleWeightClass = weightClassForBodyweight(gender, ageClass, bodyweight, output.categories);
     const weightClass =
-      scaleWeightClass ||
-      (athlete.weightClass && weightOptions.includes(String(athlete.weightClass))
-        ? String(athlete.weightClass)
-        : weightOptions[0] || "");
+      scaleWeightClass || normalizeWeightClassSelection(gender, ageClass, athlete.weightClass, output.categories);
 
     return {
       id: athlete.id || createId(),

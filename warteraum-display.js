@@ -17,12 +17,12 @@ const IWF_LOGO_SRC = "assets/iwf-logo.svg";
 const MAX_WAITING_ROOM_CHANGES = 2;
 const IWF_BODYWEIGHT_CATEGORIES = {
   senior: {
-    female: [48, 53, 58, 63, 69, 77, 86],
-    male: [60, 65, 71, 79, 88, 94, 110],
+    female: [49, 53, 57, 61, 69, 77, 86],
+    male: [60, 65, 70, 75, 85, 95, 110],
   },
   youth: {
-    female: [44, 48, 53, 58, 63, 69, 77],
-    male: [56, 60, 65, 71, 79, 88, 94],
+    female: [45, 49, 53, 57, 61, 69, 77],
+    male: [55, 60, 65, 70, 75, 85, 95],
   },
 };
 

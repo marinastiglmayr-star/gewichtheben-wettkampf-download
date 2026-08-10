@@ -65,12 +65,12 @@ const AGE_CLASSES = new Set(["children", "school", "youth", "junior", "senior", 
 
 const WEIGHT_CLASSES = {
   senior: {
-    male: ["60", "65", "71", "79", "88", "94", "110", "+110"],
-    female: ["48", "53", "58", "63", "69", "77", "86", "+86"],
+    male: ["60", "65", "70", "75", "85", "95", "110", "+110"],
+    female: ["49", "53", "57", "61", "69", "77", "86", "+86"],
   },
   youth: {
-    male: ["56", "60", "65", "71", "79", "88", "94", "+94"],
-    female: ["44", "48", "53", "58", "63", "69", "77", "+77"],
+    male: ["55", "60", "65", "70", "75", "85", "95", "+95"],
+    female: ["45", "49", "53", "57", "61", "69", "77", "+77"],
   },
   child: {
     child: ["35", "40", "45", "49", "55", "59", "64", "69", "73", "+73"],
@@ -2605,13 +2605,9 @@ function normalizeState(input) {
     const gender = normalizeGender(athlete.gender, next.categories);
     const ageClass = normalizeAgeClass(athlete.ageClass);
     const bodyweight = parseFloatSafe(athlete.bodyweight);
-    const weightOptions = getWeightClassOptions(gender, ageClass, next.categories);
     const scaleWeightClass = weightClassForBodyweight(gender, ageClass, bodyweight, next.categories);
     const weightClass =
-      scaleWeightClass ||
-      (athlete.weightClass && weightOptions.includes(String(athlete.weightClass))
-        ? String(athlete.weightClass)
-        : weightOptions[0] || "");
+      scaleWeightClass || normalizeWeightClassSelection(gender, ageClass, athlete.weightClass, next.categories);
     return {
       id: athlete.id || crypto.randomUUID(),
       catalogKey: String(athlete.catalogKey || ""),
@@ -2820,6 +2816,21 @@ function weightClassForBodyweight(gender, ageClass, bodyweight, categories = sta
     return Number.isFinite(limit) && value <= limit + 0.0001;
   });
   return match || plusClass;
+}
+
+function normalizeWeightClassSelection(gender, ageClass, weightClass, categories = state?.categories || DEFAULT_CATEGORIES) {
+  const options = getWeightClassOptions(gender, ageClass, categories);
+  if (!options.length) return "";
+  const raw = String(weightClass || "")
+    .trim()
+    .replace(/^-/g, "")
+    .replace(/\s*kg$/i, "");
+  if (options.includes(raw)) return raw;
+  if (raw.startsWith("+")) return options.find((item) => String(item).startsWith("+")) || options[options.length - 1] || "";
+  const numeric = parseFloatSafe(raw);
+  return Number.isFinite(numeric) && numeric > 0
+    ? weightClassForBodyweight(gender, ageClass, numeric, categories) || options[0] || ""
+    : options[0] || "";
 }
 
 function normalizePlates(input) {
