@@ -33,9 +33,9 @@ const DEFAULT_GROUP = {
 };
 
 const AGE_CLASSES = [
-  { key: "children", label: "Kinder bis 12 Jahre", weightType: "child" },
-  { key: "school", label: "Schüler/-innen 13-15 Jahre", weightType: "child" },
-  { key: "youth", label: "Jugend 16-17 Jahre", weightType: "youth" },
+  { key: "children", label: "AK 13 und jünger", weightType: "child" },
+  { key: "school", label: "AK 14 und AK 15", weightType: "school" },
+  { key: "youth", label: "AK 16 und AK 17", weightType: "youth" },
   { key: "junior", label: "Juniorinnen/Junioren 18-20 Jahre", weightType: "senior" },
   { key: "senior", label: "Frauen/Männer ab 18 Jahre", weightType: "senior" },
   { key: "masters", label: "Masters ab 30 Jahre", weightType: "senior" },
@@ -50,8 +50,14 @@ const WEIGHT_CLASSES = {
     male: ["55", "60", "65", "70", "75", "85", "95", "+95"],
     female: ["45", "49", "53", "57", "61", "69", "77", "+77"],
   },
+  school: {
+    male: ["51", "55", "60", "65", "70", "75", "85", "+85"],
+    female: ["41", "45", "49", "53", "57", "61", "69", "+69"],
+  },
   child: {
-    child: ["35", "40", "45", "49", "55", "59", "64", "69", "73", "+73"],
+    male: ["31", "35", "39", "43", "47", "51", "55", "60", "65", "+65"],
+    female: ["29", "33", "37", "41", "45", "49", "53", "57", "61", "+61"],
+    child: ["31", "35", "39", "43", "47", "51", "55", "60", "65", "+65"],
   },
 };
 
@@ -70,7 +76,8 @@ const DEFAULT_PLATES = [
 const DEFAULT_CATEGORIES = [
   { id: "male", label: "Mann", barWeight: 20, weightClassType: "male", relativeKey: "male", usesTechnique: false, includeCollars: true },
   { id: "female", label: "Frau", barWeight: 15, weightClassType: "female", relativeKey: "female", usesTechnique: false, includeCollars: true },
-  { id: "child", label: "Kind", barWeight: 5, weightClassType: "child", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "child", label: "Kind männlich", barWeight: 5, weightClassType: "male", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "child-female", label: "Kind weiblich", barWeight: 5, weightClassType: "female", relativeKey: "child", usesTechnique: true, includeCollars: false },
 ];
 
 const SCORING_MODES = {
@@ -5643,10 +5650,10 @@ function weightTypeForAgeClass(value) {
 function getWeightClassOptions(gender, ageClass, categories = state?.categories || DEFAULT_CATEGORIES) {
   const category = getCategory(gender, categories);
   const weightClassType = category.weightClassType || "male";
-  const weightType = weightClassType === "child" ? "child" : weightTypeForAgeClass(ageClass);
-  if (weightType === "child") return WEIGHT_CLASSES.child.child;
+  const weightType = weightTypeForAgeClass(ageClass);
   const genderKey = weightClassType === "female" ? "female" : "male";
-  return WEIGHT_CLASSES[weightType]?.[genderKey] || WEIGHT_CLASSES.senior[genderKey];
+  if (weightClassType === "child" && WEIGHT_CLASSES[weightType]?.child) return WEIGHT_CLASSES[weightType].child;
+  return WEIGHT_CLASSES[weightType]?.[genderKey] || WEIGHT_CLASSES.senior[genderKey] || [];
 }
 
 function weightClassForBodyweight(gender, ageClass, bodyweight, categories = state?.categories || DEFAULT_CATEGORIES) {
@@ -5733,7 +5740,14 @@ function normalizeCategories(input) {
       };
     })
     .filter((category) => category.label.trim());
-  return normalized.length ? normalized : createDefaultCategories();
+  if (!normalized.length) return createDefaultCategories();
+  const migratedDefaultCategoryIds = new Set(["child-female"]);
+  DEFAULT_CATEGORIES.forEach((defaultCategory) => {
+    if (migratedDefaultCategoryIds.has(defaultCategory.id) && !normalized.some((category) => category.id === defaultCategory.id)) {
+      normalized.push({ ...defaultCategory });
+    }
+  });
+  return normalized;
 }
 
 function uniqueCategoryId(rawId, seen) {
