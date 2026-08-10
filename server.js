@@ -98,8 +98,8 @@ const DEFAULT_PLATES = [
 const DEFAULT_CATEGORIES = [
   { id: "male", label: "Mann", barWeight: 20, weightClassType: "male", relativeKey: "male", usesTechnique: false, includeCollars: true },
   { id: "female", label: "Frau", barWeight: 15, weightClassType: "female", relativeKey: "female", usesTechnique: false, includeCollars: true },
-  { id: "child", label: "Kind männlich", barWeight: 5, weightClassType: "male", relativeKey: "child", usesTechnique: true, includeCollars: false },
-  { id: "child-female", label: "Kind weiblich", barWeight: 5, weightClassType: "female", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "child", label: "Jungen", barWeight: 5, weightClassType: "male", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "child-female", label: "Mädchen", barWeight: 5, weightClassType: "female", relativeKey: "child", usesTechnique: true, includeCollars: false },
 ];
 
 const IWF_MINIMUM_ATTEMPT_WEIGHT = {
@@ -2772,6 +2772,10 @@ function normalizeCategories(input) {
     if (migratedDefaultCategoryIds.has(defaultCategory.id) && !normalized.some((category) => category.id === defaultCategory.id)) {
       normalized.push({ ...defaultCategory });
     }
+  });
+  normalized.forEach((category) => {
+    if (category.id === "child" && category.label === "Kind männlich") category.label = "Jungen";
+    if (category.id === "child-female" && category.label === "Kind weiblich") category.label = "Mädchen";
   });
   return normalized;
 }
