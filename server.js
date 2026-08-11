@@ -88,11 +88,12 @@ const DEFAULT_PLATES = [
   { id: "plate-20", weight: 20, color: "#1f68b6", size: 238 },
   { id: "plate-15", weight: 15, color: "#f3c832", size: 212 },
   { id: "plate-10", weight: 10, color: "#27834a", size: 184 },
-  { id: "plate-5", weight: 5, color: "#f7f8f7", size: 146 },
-  { id: "plate-2-5", weight: 2.5, color: "#f28c28", size: 112 },
+  { id: "plate-5", weight: 5, color: "#9ca3af", size: 146 },
+  { id: "plate-2-5", weight: 2.5, color: "#c9262d", size: 112 },
   { id: "plate-2", weight: 2, color: "#2b78d0", size: 98 },
+  { id: "plate-1-5", weight: 1.5, color: "#f3c832", size: 91 },
   { id: "plate-1", weight: 1, color: "#39a35b", size: 84 },
-  { id: "plate-0-5", weight: 0.5, color: "#f3d44d", size: 70 },
+  { id: "plate-0-5", weight: 0.5, color: "#f7f8f7", size: 70 },
 ];
 
 const DEFAULT_CATEGORIES = [
