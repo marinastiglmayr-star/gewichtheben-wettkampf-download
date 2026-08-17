@@ -88,6 +88,10 @@ const DEFAULT_PLATES = [
 const DEFAULT_CATEGORIES = [
   { id: "male", label: "Mann", barWeight: 20, weightClassType: "male", relativeKey: "male", usesTechnique: false, includeCollars: true },
   { id: "female", label: "Frau", barWeight: 15, weightClassType: "female", relativeKey: "female", usesTechnique: false, includeCollars: true },
+  { id: "youth-male", label: "Jugend männlich", barWeight: 20, weightClassType: "male", relativeKey: "male", usesTechnique: false, includeCollars: true },
+  { id: "youth-female", label: "Jugend weiblich", barWeight: 15, weightClassType: "female", relativeKey: "female", usesTechnique: false, includeCollars: true },
+  { id: "school-male", label: "Schüler männlich", barWeight: 15, weightClassType: "male", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "school-female", label: "Schüler weiblich", barWeight: 10, weightClassType: "female", relativeKey: "child", usesTechnique: true, includeCollars: false },
   { id: "child", label: "Jungen", barWeight: 10, weightClassType: "child", relativeKey: "child", usesTechnique: true, includeCollars: false },
   { id: "child-female", label: "Mädchen", barWeight: 5, weightClassType: "child", relativeKey: "child", usesTechnique: true, includeCollars: false },
 ];
@@ -5674,13 +5678,22 @@ function weightTypeForAgeClass(value) {
 function getWeightClassOptions(gender, ageClass, categories = state?.categories || DEFAULT_CATEGORIES) {
   const category = getCategory(gender, categories);
   const weightClassType = category.weightClassType || "male";
-  const weightType = weightTypeForAgeClass(ageClass);
+  const weightType = weightTypeForCategory(category, ageClass);
   const genderKey = weightClassType === "female" ? "female" : "male";
   if (weightClassType === "child") {
     const childGenderKey = childWeightClassGenderKey(category);
     return WEIGHT_CLASSES[weightType]?.[childGenderKey] || WEIGHT_CLASSES[weightType]?.child || [];
   }
   return WEIGHT_CLASSES[weightType]?.[genderKey] || WEIGHT_CLASSES.senior[genderKey] || [];
+}
+
+function weightTypeForCategory(category, ageClass) {
+  const id = String(category?.id || "");
+  const label = String(category?.label || "").toLowerCase();
+  if (id === "child" || id === "child-female" || label.includes("jungen") || label.includes("mädchen") || label.includes("maedchen")) return "child";
+  if (id.startsWith("school-") || label.includes("schüler") || label.includes("schueler")) return "school";
+  if (id.startsWith("youth-") || label.includes("jugend")) return "youth";
+  return weightTypeForAgeClass(ageClass);
 }
 
 function childWeightClassGenderKey(category) {
@@ -5775,7 +5788,7 @@ function normalizeCategories(input) {
     })
     .filter((category) => category.label.trim());
   if (!normalized.length) return createDefaultCategories();
-  const migratedDefaultCategoryIds = new Set(["child-female"]);
+  const migratedDefaultCategoryIds = new Set(["youth-male", "youth-female", "school-male", "school-female", "child-female"]);
   DEFAULT_CATEGORIES.forEach((defaultCategory) => {
     if (migratedDefaultCategoryIds.has(defaultCategory.id) && !normalized.some((category) => category.id === defaultCategory.id)) {
       normalized.push({ ...defaultCategory });
@@ -5784,6 +5797,26 @@ function normalizeCategories(input) {
   normalized.forEach((category) => {
     if (category.id === "child" && category.label === "Kind männlich") category.label = "Jungen";
     if (category.id === "child-female" && category.label === "Kind weiblich") category.label = "Mädchen";
+    if (category.id === "youth-male") {
+      category.barWeight = 20;
+      category.weightClassType = "male";
+      category.relativeKey = "male";
+    }
+    if (category.id === "youth-female") {
+      category.barWeight = 15;
+      category.weightClassType = "female";
+      category.relativeKey = "female";
+    }
+    if (category.id === "school-male") {
+      category.barWeight = 15;
+      category.weightClassType = "male";
+      category.relativeKey = "child";
+    }
+    if (category.id === "school-female") {
+      category.barWeight = 10;
+      category.weightClassType = "female";
+      category.relativeKey = "child";
+    }
     if (category.id === "child") {
       category.barWeight = 10;
       category.weightClassType = "child";
