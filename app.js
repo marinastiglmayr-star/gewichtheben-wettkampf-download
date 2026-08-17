@@ -1125,8 +1125,12 @@ async function deleteTeam(id) {
   const team = getTeam(id);
   if (!team) return;
   const assigned = state.athletes.filter((athlete) => athlete.teamId === id).length;
-  if (assigned) {
-    showToast("Diese Mannschaft enthält noch Athleten.");
+  if (
+    assigned &&
+    !window.confirm(
+      `${team.name} entfernen? ${assigned} Athlet${assigned === 1 ? "" : "en"} bleiben im Wettkampf, werden aber aus dieser Mannschaft gelöst.`,
+    )
+  ) {
     return;
   }
 
@@ -1140,6 +1144,7 @@ async function deleteTeam(id) {
       }
       state = normalizeState(result.state);
       render();
+      showToast(assigned ? "Mannschaft entfernt und Athletenzuordnung geleert." : "Mannschaft entfernt.");
       return;
     } catch (error) {
       showToast("Mannschaft konnte nicht am lokalen Server entfernt werden.");
@@ -1148,8 +1153,12 @@ async function deleteTeam(id) {
   }
 
   state.teams = getTeams().filter((item) => item.id !== id);
+  state.athletes.forEach((athlete) => {
+    if (athlete.teamId === id) athlete.teamId = "";
+  });
   saveState();
   render();
+  showToast(assigned ? "Mannschaft entfernt und Athletenzuordnung geleert." : "Mannschaft entfernt.");
 }
 
 function editAthlete(id) {
@@ -3610,7 +3619,6 @@ function renderTeams() {
     .map((team) => {
       const athletes = athletesForTeam(team.id);
       const row = teamScores.get(team.id);
-      const canDelete = athletes.length === 0;
       return `
         <div class="group-chip team-chip">
           <label>
@@ -3624,11 +3632,7 @@ function renderTeams() {
           <span class="muted">${athletes.length} Athlet${athletes.length === 1 ? "" : "en"} zugeordnet</span>
           <strong>${row ? (isIwfMode() ? row.totalTeamPoints : formatScore(row.score)) : "0"} ${isIwfMode() ? "IWF-Punkte" : "Relativpunkte"}</strong>
           <div class="row-actions group-actions">
-            ${
-              canDelete
-                ? `<button type="button" class="mini-button" data-action="delete-team" data-id="${team.id}">Entfernen</button>`
-                : `<span class="muted">zugeordnet</span>`
-            }
+            <button type="button" class="mini-button danger-button" data-action="delete-team" data-id="${team.id}">Entfernen</button>
           </div>
         </div>
       `;
@@ -7633,3 +7637,4 @@ function normalizeNextChangeCounts(input) {
   });
   return output;
 }
+

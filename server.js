@@ -1139,11 +1139,10 @@ async function deleteTeam(req, res, id) {
     sendJson(res, 404, { error: "Mannschaft nicht gefunden." });
     return;
   }
-  if (state.athletes.some((athlete) => athlete.teamId === id)) {
-    sendJson(res, 409, { error: "Diese Mannschaft enthält noch Athleten." });
-    return;
-  }
   state.teams = state.teams.filter((item) => item.id !== id);
+  state.athletes.forEach((athlete) => {
+    if (athlete.teamId === id) athlete.teamId = "";
+  });
   state = normalizeState(state);
   await persistState();
   broadcastState();
@@ -3523,3 +3522,4 @@ function parseFloatSafe(value) {
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
+
