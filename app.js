@@ -5897,15 +5897,22 @@ function resetCategories() {
   if (state.athletes.length && !window.confirm("Standard-Kategorien laden? Zugeordnete Athleten werden bei Bedarf auf die erste Kategorie gesetzt.")) {
     return;
   }
-  state.categories = createDefaultCategories();
+  const defaultCategories = createDefaultCategories();
+  const defaultIds = new Set(defaultCategories.map((category) => category.id));
+  state.categories = defaultCategories;
   state.athletes.forEach((athlete) => {
-    athlete.gender = normalizeGender(athlete.gender);
+    const normalizedGender = normalizeGender(athlete.gender, defaultCategories);
+    athlete.gender = defaultIds.has(normalizedGender) ? normalizedGender : defaultCategories[0].id;
     athlete.barWeight = barWeightForGender(athlete.gender);
     athlete.weightClass = normalizeWeightClassSelection(athlete.gender, athlete.ageClass, athlete.weightClass);
   });
   saveState();
+  renderCategorySelect();
+  renderWeightClassSelect();
   renderCategorySettings();
+  renderSetupViews();
   render();
+  showToast("Standard-Kategorien wurden geladen.");
 }
 
 function updateCategoryField(input, options = { save: true }) {
