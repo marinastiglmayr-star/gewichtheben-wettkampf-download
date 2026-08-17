@@ -684,7 +684,7 @@ function shouldUseTechnique(athlete) {
 }
 
 function getAgeFactor(athlete) {
-  if (normalizeAgeClass(athlete?.ageClass) !== "masters") return 1;
+  if (!isMastersAgeClass(athlete?.ageClass)) return 1;
   const birthYear = parseInteger(athlete?.birthYear);
   if (!Number.isInteger(birthYear)) return 1;
   const age = competitionYear() - birthYear;
@@ -812,7 +812,32 @@ function applyScoringModeTheme() {
 
 function normalizeAgeClass(value) {
   const key = String(value || "").trim();
-  return ["children", "school", "youth", "junior", "senior", "masters"].includes(key) ? key : "senior";
+  if (key === "masters") return "masters-m35";
+  return [
+    "children",
+    "school",
+    "youth",
+    "junior",
+    "senior",
+    "masters-m35",
+    "masters-m45",
+    "masters-m55",
+    "masters-m65",
+    "masters-m75",
+    "masters-m85",
+    "masters-w35",
+    "masters-w45",
+    "masters-w55",
+    "masters-w65",
+    "masters-w75",
+    "masters-w85",
+  ].includes(key)
+    ? key
+    : "senior";
+}
+
+function isMastersAgeClass(value) {
+  return normalizeAgeClass(value).startsWith("masters-");
 }
 
 function formatKg(value) {

@@ -33,12 +33,23 @@ const DEFAULT_GROUP = {
 };
 
 const AGE_CLASSES = [
-  { key: "children", label: "Jungen/Mädchen AK 13 und jünger", weightType: "child" },
-  { key: "school", label: "Schüler/Schülerinnen AK 14 und AK 15", weightType: "school" },
-  { key: "youth", label: "AK 16 und AK 17", weightType: "youth" },
+  { key: "children", label: "Kinder bis 12 Jahre", weightType: "child" },
+  { key: "school", label: "Schüler von 13 bis 15 Jahre", weightType: "school" },
+  { key: "youth", label: "Jugend von 16 bis 17 Jahre", weightType: "youth" },
   { key: "junior", label: "Juniorinnen/Junioren 18-20 Jahre", weightType: "senior" },
   { key: "senior", label: "Frauen/Männer ab 18 Jahre", weightType: "senior" },
-  { key: "masters", label: "Masters ab 30 Jahre", weightType: "senior" },
+  { key: "masters-m35", label: "M35 + M40 (35-44 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-m45", label: "M45 + M50 (45-54 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-m55", label: "M55 + M60 (55-64 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-m65", label: "M65 + M70 (65-74 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-m75", label: "M75 + M80 (75-84 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-m85", label: "M85+ (85 Jahre und älter)", weightType: "senior", masters: true },
+  { key: "masters-w35", label: "W35 + W40 (35-44 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-w45", label: "W45 + W50 (45-54 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-w55", label: "W55 + W60 (55-64 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-w65", label: "W65 + W70 (65-74 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-w75", label: "W75 + W80 (75-84 Jahre)", weightType: "senior", masters: true },
+  { key: "masters-w85", label: "W85+ (85 Jahre und älter)", weightType: "senior", masters: true },
 ];
 
 const WEIGHT_CLASSES = {
@@ -3531,7 +3542,9 @@ function renderCategorySelect() {
 
 function renderAgeClassSelect() {
   if (!els.athleteAgeClass) return;
-  const selected = els.athleteAgeClass.value || state.athletes.find((athlete) => athlete.id === editingAthleteId)?.ageClass || "senior";
+  const selected = normalizeAgeClass(
+    els.athleteAgeClass.value || state.athletes.find((athlete) => athlete.id === editingAthleteId)?.ageClass || "senior",
+  );
   els.athleteAgeClass.innerHTML = AGE_CLASSES.map(
     (ageClass) => `<option value="${ageClass.key}">${escapeHtml(ageClass.label)}</option>`,
   ).join("");
@@ -4953,7 +4966,7 @@ function nextWeightWarning(athlete, lift, weight) {
 
 function athleteSetupWarning(athlete) {
   if (!athlete.name || !athlete.ageClass || !athlete.weightClass) return "Meldung prüfen";
-  if (normalizeAgeClass(athlete.ageClass) === "masters" && !parseOptionalBirthYear(athlete.birthYear)) return "Jahrgang fehlt";
+  if (isMastersAgeClass(athlete.ageClass) && !parseOptionalBirthYear(athlete.birthYear)) return "Jahrgang fehlt";
   if (!athlete.bodyweight || !athlete.openers?.snatch || !athlete.openers?.cleanJerk) return "Waage offen";
   if (isIwfMode()) {
     const warning = iwfAthleteStartWarning(athlete);
@@ -5358,7 +5371,7 @@ function getRelativeDeduction(athlete) {
 }
 
 function getAgeFactor(athlete) {
-  if (normalizeAgeClass(athlete?.ageClass) !== "masters") return 1;
+  if (!isMastersAgeClass(athlete?.ageClass)) return 1;
   const age = athleteAge(athlete);
   if (!Number.isFinite(age)) return 1;
   const table = getAgeFactorTable(ageFactorKeyForAthlete(athlete))
@@ -5390,7 +5403,7 @@ function competitionYear() {
 }
 
 function shouldShowAgeFactorColumn(athletes = state.athletes) {
-  return athletes.some((athlete) => normalizeAgeClass(athlete.ageClass) === "masters");
+  return athletes.some((athlete) => isMastersAgeClass(athlete.ageClass));
 }
 
 function getTechniqueTotal(athlete) {
@@ -5489,7 +5502,7 @@ function validateStartList() {
   const groupIds = new Set(state.groups.map((group) => group.id));
   for (const athlete of presentAthletes) {
     if (!athlete.name || !athlete.ageClass || !athlete.weightClass) return "Die Meldedaten sind noch unvollständig.";
-    if (normalizeAgeClass(athlete.ageClass) === "masters" && !parseOptionalBirthYear(athlete.birthYear)) {
+    if (isMastersAgeClass(athlete.ageClass) && !parseOptionalBirthYear(athlete.birthYear)) {
       return `Für ${athlete.name} fehlt der Jahrgang für den Masters-Altersfaktor.`;
     }
     if (!athlete.bodyweight || !athlete.openers?.snatch || !athlete.openers?.cleanJerk) {
@@ -5635,7 +5648,13 @@ function updateTeamField(input, options = { save: true }) {
 
 function normalizeAgeClass(value) {
   const key = String(value || "").trim();
+  if (key === "masters") return "masters-m35";
   return AGE_CLASSES.some((ageClass) => ageClass.key === key) ? key : "senior";
+}
+
+function isMastersAgeClass(value) {
+  const key = normalizeAgeClass(value);
+  return AGE_CLASSES.some((ageClass) => ageClass.key === key && ageClass.masters);
 }
 
 function ageClassLabel(value) {
@@ -7140,7 +7159,7 @@ function buildResultTableRows(
           ${showTechnique ? `<td>${shouldUseTechnique(row.athlete) ? formatScore(row.technique) : "-"}</td>` : ""}
           ${
             showAgeFactor
-              ? `<td>${normalizeAgeClass(row.athlete.ageClass) === "masters" ? formatFactor(row.ageFactor) : "-"}</td><td>${normalizeAgeClass(row.athlete.ageClass) === "masters" && row.total ? formatScore(row.ageAdjustedScore) : "-"}</td>`
+              ? `<td>${isMastersAgeClass(row.athlete.ageClass) ? formatFactor(row.ageFactor) : "-"}</td><td>${isMastersAgeClass(row.athlete.ageClass) && row.total ? formatScore(row.ageAdjustedScore) : "-"}</td>`
               : ""
           }
           <td>${row.total ? formatScore(row.score) : "-"}</td>

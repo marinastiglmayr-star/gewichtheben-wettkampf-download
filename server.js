@@ -61,7 +61,25 @@ const BAR_WEIGHTS = {
   child: 5,
 };
 
-const AGE_CLASSES = new Set(["children", "school", "youth", "junior", "senior", "masters"]);
+const AGE_CLASSES = new Set([
+  "children",
+  "school",
+  "youth",
+  "junior",
+  "senior",
+  "masters-m35",
+  "masters-m45",
+  "masters-m55",
+  "masters-m65",
+  "masters-m75",
+  "masters-m85",
+  "masters-w35",
+  "masters-w45",
+  "masters-w55",
+  "masters-w65",
+  "masters-w75",
+  "masters-w85",
+]);
 
 const WEIGHT_CLASSES = {
   senior: {
@@ -2804,6 +2822,7 @@ function uniqueCategoryId(rawId, seen) {
 
 function normalizeAgeClass(value) {
   const key = String(value || "").trim();
+  if (key === "masters") return "masters-m35";
   return AGE_CLASSES.has(key) ? key : "senior";
 }
 
