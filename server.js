@@ -117,8 +117,8 @@ const DEFAULT_PLATES = [
 const DEFAULT_CATEGORIES = [
   { id: "male", label: "Mann", barWeight: 20, weightClassType: "male", relativeKey: "male", usesTechnique: false, includeCollars: true },
   { id: "female", label: "Frau", barWeight: 15, weightClassType: "female", relativeKey: "female", usesTechnique: false, includeCollars: true },
-  { id: "child", label: "Jungen", barWeight: 5, weightClassType: "male", relativeKey: "child", usesTechnique: true, includeCollars: false },
-  { id: "child-female", label: "Mädchen", barWeight: 5, weightClassType: "female", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "child", label: "Jungen", barWeight: 10, weightClassType: "child", relativeKey: "child", usesTechnique: true, includeCollars: false },
+  { id: "child-female", label: "Mädchen", barWeight: 5, weightClassType: "child", relativeKey: "child", usesTechnique: true, includeCollars: false },
 ];
 
 const IWF_MINIMUM_ATTEMPT_WEIGHT = {
@@ -2633,6 +2633,11 @@ function normalizeState(input) {
     const scaleWeightClass = weightClassForBodyweight(gender, ageClass, bodyweight, next.categories);
     const weightClass =
       scaleWeightClass || normalizeWeightClassSelection(gender, ageClass, athlete.weightClass, next.categories);
+    const category = getCategory(gender, next.categories);
+    const savedBarWeight = parseFloatSafe(athlete.barWeight);
+    const barWeight = gender === "child" && savedBarWeight === 5 && category.barWeight === 10
+      ? 10
+      : savedBarWeight || category.barWeight;
     return {
       id: athlete.id || crypto.randomUUID(),
       catalogKey: String(athlete.catalogKey || ""),
@@ -2645,7 +2650,7 @@ function normalizeState(input) {
       ageClass,
       birthYear: parseOptionalBirthYear(athlete.birthYear),
       weightClass,
-      barWeight: parseFloatSafe(athlete.barWeight) || getCategory(gender, next.categories).barWeight,
+      barWeight,
       lotNo: parseInteger(athlete.lotNo) || parseInteger(athlete.startNo) || index + 1,
       bodyweight,
       entryTotal: parseInteger(athlete.entryTotal),
@@ -2794,6 +2799,13 @@ function normalizeCategories(input) {
   normalized.forEach((category) => {
     if (category.id === "child" && category.label === "Kind männlich") category.label = "Jungen";
     if (category.id === "child-female" && category.label === "Kind weiblich") category.label = "Mädchen";
+    if (category.id === "child") {
+      category.barWeight = 10;
+      category.weightClassType = "child";
+    }
+    if (category.id === "child-female") {
+      category.weightClassType = "child";
+    }
   });
   return normalized;
 }
@@ -2838,8 +2850,18 @@ function getWeightClassOptions(gender, ageClass, categories = state?.categories 
   const weightClassType = category.weightClassType || "male";
   const weightType = weightTypeForAgeClass(ageClass);
   const genderKey = weightClassType === "female" ? "female" : "male";
-  if (weightClassType === "child" && WEIGHT_CLASSES[weightType]?.child) return WEIGHT_CLASSES[weightType].child;
+  if (weightClassType === "child") {
+    const childGenderKey = childWeightClassGenderKey(category);
+    return WEIGHT_CLASSES[weightType]?.[childGenderKey] || WEIGHT_CLASSES[weightType]?.child || [];
+  }
   return WEIGHT_CLASSES[weightType]?.[genderKey] || WEIGHT_CLASSES.senior[genderKey] || [];
+}
+
+function childWeightClassGenderKey(category) {
+  const label = String(category?.label || "").toLowerCase();
+  if (category?.id === "child-female" || label.includes("mädchen") || label.includes("maedchen")) return "female";
+  if (category?.id === "child" || label.includes("jungen")) return "male";
+  return "child";
 }
 
 function weightClassForBodyweight(gender, ageClass, bodyweight, categories = state?.categories || DEFAULT_CATEGORIES) {
