@@ -36,8 +36,8 @@ const AGE_CLASSES = [
   { key: "children", label: "Kinder bis 12 Jahre", weightType: "child" },
   { key: "school", label: "Schüler von 13 bis 15 Jahre", weightType: "school" },
   { key: "youth", label: "Jugend von 16 bis 17 Jahre", weightType: "youth" },
-  { key: "junior", label: "Juniorinnen/Junioren 18-20 Jahre", weightType: "senior" },
-  { key: "senior", label: "Frauen/Männer ab 18 Jahre", weightType: "senior" },
+  { key: "junior", label: "Junioren/Juniorinnen von 18 bis 20 Jahre", weightType: "senior" },
+  { key: "senior", label: "Aktive von 21 bis 34 Jahre", weightType: "senior" },
   { key: "masters-m35", label: "M35 + M40 (35-44 Jahre)", weightType: "senior", masters: true },
   { key: "masters-m45", label: "M45 + M50 (45-54 Jahre)", weightType: "senior", masters: true },
   { key: "masters-m55", label: "M55 + M60 (55-64 Jahre)", weightType: "senior", masters: true },
@@ -4585,7 +4585,7 @@ function renderStandings() {
   if (els.standingsHead) {
     els.standingsHead.innerHTML = `
       <tr>
-        <th>Platz Klasse</th>
+        <th>Platz Alters-/Gewichtsklasse</th>
         <th>Gesamtrang</th>
         <th>Athlet</th>
         <th>Klasse</th>
@@ -4611,7 +4611,7 @@ function renderStandings() {
         <td>${formatResultPlace(row)}</td>
         <td>${row.outOfCompetition ? "AK" : row.rank || "-"}</td>
         <td>${renderAthleteName(row.athlete)}<br><span class="muted">Gruppe ${escapeHtml(groupNameById(row.athlete.groupId))}</span></td>
-        <td>${escapeHtml(formatWeightClass(row.athlete.weightClass))}</td>
+        <td>${escapeHtml(ageClassLabel(row.athlete.ageClass))}<br><span class="muted">${escapeHtml(formatWeightClass(row.athlete.weightClass))}</span></td>
         <td>${row.snatch || "-"}</td>
         <td>${row.cleanJerk || "-"}</td>
         <td><strong>${row.total || "DNF"}</strong></td>
@@ -5659,7 +5659,7 @@ function isMastersAgeClass(value) {
 
 function ageClassLabel(value) {
   const ageClass = AGE_CLASSES.find((item) => item.key === normalizeAgeClass(value));
-  return ageClass?.label || "Frauen/Männer ab 18 Jahre";
+  return ageClass?.label || "Aktive von 21 bis 34 Jahre";
 }
 
 function weightTypeForAgeClass(value) {
@@ -7106,7 +7106,7 @@ function buildGroupResultSections() {
           <table>
             <thead>
               <tr>
-                <th>Platz in Gewichtsklasse</th>
+                <th>Platz Alters-/Gewichtsklasse</th>
                 <th>Gesamtrang Gruppe</th>
                 <th>Name</th>
                 <th>Verein</th>
