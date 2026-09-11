@@ -57,6 +57,9 @@ Wenn die Adresse am Handy nicht lädt:
 - Über `Relativabzug` können die Abzüge für Mann, Frau und Kind bearbeitet werden.
 - Die Technikwertung kann im Setup ein- oder ausgeschaltet werden und gilt für Kategorien, bei denen Technik aktiviert ist.
 - Wettkampf starten.
+- Zum Wettkampfstart müssen nur die anwesenden Athleten der ersten startenden Gruppe mindestens einen Waagewert (Körpergewicht oder ein Anfangsgewicht) haben. Spätere Gruppen können während des Wettkampfs weiter gewogen werden.
+- Bei `Nächste Gruppe beginnen` werden Athleten dieser Folgegruppe ohne jegliche Waagedaten automatisch als fehlend markiert. Vorhandene Waagewerte bleiben erhalten. Gruppen ohne anwesende Athleten mit mindestens einem Waagewert werden übersprungen.
+- Beim Verlassen und erneuten Starten des Wettkampfs bleiben Waagedaten und manuelle sowie automatische Fehlend-Markierungen erhalten.
 - Die App lässt zuerst das Reißen für alle Gruppen laufen: Reißen Gruppe 1, Reißen Gruppe 2 bis Gruppe n. Erst danach wird das Stoßen freigeschaltet und läuft wieder Gruppe 1 bis Gruppe n.
 - Innerhalb der aktiven Gruppe ruft die App zuerst alle ersten Versuche nach Startnummer auf, danach alle zweiten Versuche und danach alle dritten Versuche.
 - Jeder Kampfrichter sendet auf dem Handy Weiß oder Rot.

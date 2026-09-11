@@ -1579,9 +1579,10 @@ function saveWeighInFromForm(options = {}) {
   const scaleWeightClass = weightClassForBodyweight(athlete.gender, athlete.ageClass, bodyweight);
   if (scaleWeightClass) athlete.weightClass = scaleWeightClass;
   athlete.openers = { snatch, cleanJerk };
-  if (state.meta.mode === "setup") {
-    athlete.next = { snatch, cleanJerk };
-  }
+  athlete.next = {
+    snatch: athlete.attempts?.snatch?.length ? athlete.next?.snatch : snatch,
+    cleanJerk: athlete.attempts?.cleanJerk?.length ? athlete.next?.cleanJerk : cleanJerk,
+  };
 
   saveState();
   render();
@@ -1725,7 +1726,31 @@ function startCleanJerk() {
 }
 
 function startNextGroup() {
-  const nextGroupId = firstPendingGroupId();
+  let nextGroupId = firstPendingGroupId();
+  while (nextGroupId) {
+    const athletes = athletesForGroup(nextGroupId).filter((athlete) => !athlete.withdrawn);
+    const readyAthletes = athletes.filter((athlete) => weighInStatus(athlete) !== "empty");
+    if (isIwfMode()) {
+      for (const athlete of readyAthletes.filter((item) => weighInStatus(item) === "complete")) {
+        const warning = iwfAthleteStartWarning(athlete);
+        if (warning) {
+          saveState();
+          render();
+          showToast(`${athlete.name}: ${warning}`);
+          return;
+        }
+      }
+    }
+    athletes.forEach((athlete) => {
+      if (weighInStatus(athlete) === "empty") athlete.withdrawn = true;
+    });
+    if (readyAthletes.length) break;
+    // Eine vollständig fehlende Gruppe überspringen, ohne einen leeren Durchgang zu starten.
+    const group = state.groups.find((item) => item.id === nextGroupId);
+    markGroupLiftComplete(group, "snatch");
+    markGroupLiftComplete(group, "cleanJerk");
+    nextGroupId = firstPendingGroupId();
+  }
   if (!nextGroupId) {
     state.meta.mode = "finished";
     saveState();
@@ -1770,7 +1795,6 @@ function resetCompetition() {
   state.meta.awardCeremony = false;
   state.meta.sequence = 0;
   state.athletes.forEach((athlete) => {
-    athlete.withdrawn = false;
     athlete.attempts = { snatch: [], cleanJerk: [] };
     athlete.next = {
       snatch: athlete.openers.snatch,
@@ -2448,8 +2472,8 @@ function guidedAthleteDataStep() {
 }
 
 function guidedWeighInStep() {
-  const athletes = state.athletes || [];
-  const complete = athletes.length && athletes.every((athlete) => athlete.bodyweight && athlete.openers?.snatch && athlete.openers?.cleanJerk);
+  const athletes = athletesForGroup(firstStartingGroupId()).filter((athlete) => !athlete.withdrawn);
+  const complete = athletes.length && athletes.every((athlete) => weighInStatus(athlete) !== "empty");
   const partial = athletes.filter((athlete) => athlete.bodyweight || athlete.openers?.snatch || athlete.openers?.cleanJerk).length;
   return {
     id: "weighIn",
@@ -2458,9 +2482,9 @@ function guidedWeighInStep() {
     shortTitle: "Waage",
     hint: "Oeffne die Waage und trage Koerpergewicht, Startgewicht Reissen und Startgewicht Stossen ein. Spaetere Gruppen koennen auch waehrend des Wettkampfs weiter gewogen werden.",
     checks: [
-      guidedCheck("Waagedaten vollstaendig", complete ? "ok" : "open", complete ? "Alle Athleten haben Waagedaten." : `${partial} von ${athletes.length} Athlet(en) haben mindestens einen Waagewert.`),
-      guidedCheck("Startgewichte", complete ? "ok" : "open", "Reissen und Stossen muessen vor dem Start fuer alle anwesenden Athleten gefuellt sein."),
-      guidedCheck("Fehlende Athleten", "warn", "Nicht erschienene Athleten koennen an der Waage als fehlend markiert werden, solange ihre Gruppe noch nicht aktiv ist."),
+      guidedCheck("Waagedaten der ersten Gruppe", complete ? "ok" : "open", complete ? "Alle anwesenden Athleten der ersten Gruppe haben mindestens einen Waagewert." : `${partial} von ${athletes.length} Athlet(en) der ersten Gruppe haben mindestens einen Waagewert.`),
+      guidedCheck("Startgewichte", complete ? "ok" : "open", "Zum Wettkampfstart braucht jeder anwesende Athlet der ersten Gruppe mindestens einen Waagewert. Teilweise ausgefuellte Daten sind erlaubt."),
+      guidedCheck("Fehlende Athleten", "warn", "Beim Beginn einer Folgegruppe werden Athleten ohne jegliche Waagedaten automatisch als fehlend markiert. Bestehende Fehlend-Markierungen bleiben auch beim erneuten Wettkampfstart erhalten."),
     ],
   };
 }
@@ -5508,19 +5532,21 @@ function validateStartList() {
   if (!getOrderedGroups().length) return "Bitte zuerst mindestens eine Gruppe anlegen.";
 
   const groupIds = new Set(state.groups.map((group) => group.id));
+  const firstGroupId = firstStartingGroupId();
   for (const athlete of presentAthletes) {
     if (!athlete.name || !athlete.ageClass || !athlete.weightClass) return "Die Meldedaten sind noch unvollständig.";
     if (isMastersAgeClass(athlete.ageClass) && !parseOptionalBirthYear(athlete.birthYear)) {
       return `Für ${athlete.name} fehlt der Jahrgang für den Masters-Altersfaktor.`;
     }
-    if (!athlete.bodyweight || !athlete.openers?.snatch || !athlete.openers?.cleanJerk) {
-      return `Für ${athlete.name} fehlen Waagewerte oder Anfangsgewichte.`;
+    if (!groupIds.has(getAthleteGroupId(athlete))) return `${athlete.name} ist keiner gültigen Gruppe zugeordnet.`;
+    if (getAthleteGroupId(athlete) !== firstGroupId) continue;
+    if (weighInStatus(athlete) === "empty") {
+      return `Für ${athlete.name} fehlen sämtliche Waagewerte und Anfangsgewichte.`;
     }
-    if (isIwfMode()) {
+    if (isIwfMode() && weighInStatus(athlete) === "complete") {
       const warning = iwfAthleteStartWarning(athlete);
       if (warning) return `${athlete.name}: ${warning}`;
     }
-    if (!groupIds.has(getAthleteGroupId(athlete))) return `${athlete.name} ist keiner gültigen Gruppe zugeordnet.`;
   }
 
   if (!getOrderedGroups().some((group) => athletesForGroup(group.id).some((athlete) => !athlete.withdrawn))) {
@@ -6310,6 +6336,12 @@ function athletesForGroup(groupId) {
 function groupNameById(id) {
   const group = state.groups.find((item) => item.id === id) || getOrderedGroups()[0];
   return group?.name || "-";
+}
+
+function firstStartingGroupId() {
+  return getOrderedGroups().find(
+    (group) => athletesForGroup(group.id).some((athlete) => !athlete.withdrawn),
+  )?.id || null;
 }
 
 function firstPendingGroupId() {
