@@ -226,7 +226,7 @@ function renderAthleteOptions() {
   const athletes = getFilteredAthletes();
   els.athlete.innerHTML = athletes
     .map((athlete, index) => {
-      const suffix = athlete.withdrawn ? " - fehlend" : "";
+      const suffix = " - " + { missing: "fehlend", empty: "nicht ausgefüllt", partial: "teilweise ausgefüllt", complete: "vollständig" }[weighStatus(athlete)];
       return `<option value="${escapeHtml(athlete.id)}">${index + 1}. ${escapeHtml(athlete.name)}${suffix}</option>`;
     })
     .join("");
@@ -234,12 +234,16 @@ function renderAthleteOptions() {
     const athlete = findAthlete(option.value);
     const status = athlete ? weighStatus(athlete) : "empty";
     option.className = `weigh-status-${status}`;
+    option.setAttribute("style", weighStatusStyle(status));
   });
   els.athlete.value = athletes.some((athlete) => athlete.id === selected) ? selected : athletes[0]?.id || "";
 }
 
 function loadSelectedAthlete() {
   const athlete = findAthlete(els.athlete.value);
+  const statusStyle = weighStatusStyle(athlete ? weighStatus(athlete) : "empty");
+  els.athlete.setAttribute("style", statusStyle);
+  els.athleteSummary.setAttribute("style", statusStyle);
   if (!athlete) {
     els.bodyweight.value = "";
     els.snatch.value = "";
@@ -324,10 +328,17 @@ function missingDisabledReason(athlete) {
 function weighStatus(athlete) {
   if (athlete.withdrawn) return "missing";
   const values = [athlete.bodyweight, athlete.openers?.snatch, athlete.openers?.cleanJerk];
-  const filled = values.filter((value) => value !== null && value !== undefined && value !== "").length;
+  const filled = values.filter((value) => Number(value) > 0).length;
   if (filled === values.length) return "complete";
   if (filled > 0) return "partial";
   return "empty";
+}
+
+function weighStatusStyle(status) {
+  if (status === "missing") return "background:#f7d7d4;color:#7f1d1d;";
+  if (status === "complete") return "background:#dff4e7;color:#115c35;";
+  if (status === "partial") return "background:#fff1c2;color:#6f4c00;";
+  return "background:#ffffff;color:#192026;";
 }
 
 function getOrderedGroups() {

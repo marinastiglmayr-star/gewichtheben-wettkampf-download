@@ -1513,6 +1513,7 @@ function renderWeighInGroupFilter() {
 }
 
 function weighInStatus(athlete) {
+  if (athlete.withdrawn) return "missing";
   const values = [athlete.bodyweight, athlete.openers?.snatch, athlete.openers?.cleanJerk];
   const filled = values.filter((value) => Number(value) > 0).length;
   if (filled === values.length) return "complete";
@@ -1521,6 +1522,7 @@ function weighInStatus(athlete) {
 }
 
 function weighInOptionStyle(status) {
+  if (status === "missing") return "background:#f7d7d4;color:#7f1d1d;";
   if (status === "complete") return "background:#dff4e7;color:#115c35;";
   if (status === "partial") return "background:#fff1c2;color:#6f4c00;";
   return "background:#ffffff;color:#192026;";
@@ -1531,7 +1533,8 @@ function renderWeighInAthleteOptions(selectedId) {
   els.weighAthlete.innerHTML = athletes
     .map((athlete, index) => {
       const group = groupNameById(getAthleteGroupId(athlete));
-      return `<option value="${athlete.id}">${index + 1}. ${escapeHtml(athlete.name)} · Gruppe ${escapeHtml(group)}</option>`;
+      const status = { missing: "fehlend", empty: "nicht ausgefüllt", partial: "teilweise ausgefüllt", complete: "vollständig" }[weighInStatus(athlete)];
+      return `<option value="${athlete.id}">${index + 1}. ${escapeHtml(athlete.name)} · Gruppe ${escapeHtml(group)} · ${status}</option>`;
     })
     .join("");
   Array.from(els.weighAthlete.options).forEach((option) => {
@@ -1545,6 +1548,9 @@ function renderWeighInAthleteOptions(selectedId) {
 
 function loadWeighInAthlete(id) {
   const athlete = findAthlete(id);
+  const statusStyle = weighInOptionStyle(athlete ? weighInStatus(athlete) : "empty");
+  els.weighAthlete.setAttribute("style", statusStyle);
+  els.weighAthleteSummary.setAttribute("style", statusStyle);
   if (!athlete) {
     els.weighBodyweight.value = "";
     els.weighSnatch.value = "";
@@ -5824,27 +5830,22 @@ function normalizeCategories(input) {
     if (category.id === "child" && category.label === "Kind männlich") category.label = "Jungen";
     if (category.id === "child-female" && category.label === "Kind weiblich") category.label = "Mädchen";
     if (category.id === "youth-male") {
-      category.barWeight = 20;
       category.weightClassType = "male";
       category.relativeKey = "male";
     }
     if (category.id === "youth-female") {
-      category.barWeight = 15;
       category.weightClassType = "female";
       category.relativeKey = "female";
     }
     if (category.id === "school-male") {
-      category.barWeight = 15;
       category.weightClassType = "male";
       category.relativeKey = "child";
     }
     if (category.id === "school-female") {
-      category.barWeight = 10;
       category.weightClassType = "female";
       category.relativeKey = "child";
     }
     if (category.id === "child") {
-      category.barWeight = 10;
       category.weightClassType = "child";
     }
     if (category.id === "child-female") {

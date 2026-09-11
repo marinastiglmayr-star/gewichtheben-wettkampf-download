@@ -2804,27 +2804,22 @@ function normalizeCategories(input) {
     if (category.id === "child" && category.label === "Kind männlich") category.label = "Jungen";
     if (category.id === "child-female" && category.label === "Kind weiblich") category.label = "Mädchen";
     if (category.id === "youth-male") {
-      category.barWeight = 20;
       category.weightClassType = "male";
       category.relativeKey = "male";
     }
     if (category.id === "youth-female") {
-      category.barWeight = 15;
       category.weightClassType = "female";
       category.relativeKey = "female";
     }
     if (category.id === "school-male") {
-      category.barWeight = 15;
       category.weightClassType = "male";
       category.relativeKey = "child";
     }
     if (category.id === "school-female") {
-      category.barWeight = 10;
       category.weightClassType = "female";
       category.relativeKey = "child";
     }
     if (category.id === "child") {
-      category.barWeight = 10;
       category.weightClassType = "child";
     }
     if (category.id === "child-female") {
