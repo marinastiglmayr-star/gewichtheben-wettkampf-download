@@ -599,7 +599,6 @@ function startEventStream() {
     renderHeader();
     renderConnection();
     if (activeSetupView === "youtube") renderYouTubeSettings();
-    if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
   });
   eventSource.addEventListener("error", () => {
     showToast("Live-Verbindung zum lokalen Server wird wiederhergestellt.");
@@ -632,11 +631,9 @@ function renderAfterStateSync() {
   if (shouldDeferRenderForActiveInput()) {
     renderConnection();
     if (activeSetupView === "youtube") renderYouTubeStatusOnly();
-    if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
     return;
   }
   render();
-  if (els.displayRoutingDialog?.open) renderDisplayRoutingDialog();
 }
 
 function shouldDeferRenderForActiveInput() {
@@ -3754,6 +3751,7 @@ function renderConnection() {
       <div><p class="eyebrow">Netzwerk</p><h3>Geräte verbinden</h3></div>
       <p>Alle Geräte müssen im selben lokalen Netzwerk sein. Den passenden Link kopieren und auf dem jeweiligen Gerät öffnen.</p>
     </header>
+    <div class="network-card-grid">
     <article class="network-card">
       <div class="network-card-heading"><span class="network-number">01</span><div><h3>Kampfrichter</h3><p>Abstimmen und Versuchsuhr bedienen</p></div></div>
       <div class="network-pairing"><img class="qr-code" src="/api/qr.svg?data=${encodeURIComponent(qrUrl)}" alt="QR-Code zur Kampfrichter-App" /><div><span class="eyebrow">Verbindungscode</span><strong class="connection-code">${escapeHtml(code)}</strong><p>QR-Code scannen und diesen Code am Handy eingeben.</p><button type="button" class="ghost-button" data-action="rotate-code">Code erneuern</button></div></div>
@@ -3778,10 +3776,12 @@ function renderConnection() {
       ${renderConnectionLinks(wlanWaitingRoomDisplayUrls, "Warteraum")}
       <div class="network-note">Startet direkt. Keine Anmeldung und keine Zuweisung nötig.</div>
     </article>
-    <article class="network-card">
+    </div>
+    <article class="network-card network-card-displays">
       <div class="network-card-heading"><span class="network-number">05</span><div><h3>Steuerbare Bildschirmstation</h3><p>Ansicht vom Host aus auswählen</p></div></div>
       <p>Für einen Pi oder Bildschirm, dessen Ansicht du wechseln möchtest: Für jede Adresse hier die Ansicht auswählen und den Link auf dem jeweiligen Pi öffnen. Mehrere Geräte mit derselben Adresse zeigen dieselbe Ansicht.</p>
       ${renderFixedDisplaySlots()}
+      <div class="network-actions"><button type="button" class="primary-button" data-action="open-display-routing">Display-Ansichten in großem Fenster zuweisen</button></div>
       <div class="network-note">Die Auswahl wird sofort gespeichert. Bis eine Ansicht gewählt ist, zeigt der jeweilige Pi eine Warteseite.</div>
     </article>
     <section class="network-footer"><h3>Verbindungsstatus</h3>${renderControlClientStatus()}<p>Seite nicht erreichbar? Host eingeschaltet lassen, Adressen aus diesem Menü verwenden und prüfen, ob beide Geräte im selben Netzwerk sind. Gastnetz und Windows-Firewall können Verbindungen blockieren.</p></section>
@@ -3910,7 +3910,7 @@ function renderDisplayRoutingDialog() {
 function renderFixedDisplaySlots() {
   const bases = (sessionInfo?.controlUrls || []).filter((url) => !url.includes("localhost"));
   const clients = sessionInfo?.displayClients || [];
-  return [1, 2, 3].map((number) => {
+  const slots = [1, 2, 3].map((number) => {
     const id = 'display' + number;
     const client = clients.find((item) => item.id === id);
     const role = sessionInfo?.displayAssignments?.[id] || client?.assignment || "";
@@ -3918,6 +3918,7 @@ function renderFixedDisplaySlots() {
       ${renderConnectionLinks(bases.map((base) => base.replace(/\/$/, '') + '/' + id), 'Display ' + number)}
       <label><span>Ansicht auf Display ${number}</span><select data-display-assignment data-id="${id}">${renderDisplayRoleOptions(role)}</select></label></div>`;
   }).join('');
+  return `<div class="fixed-display-grid">${slots}</div>`;
 }
 
 function renderDisplayRoleOptions(selectedRole) {
