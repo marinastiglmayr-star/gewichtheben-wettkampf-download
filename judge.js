@@ -262,21 +262,14 @@ function renderTimerAction() {
   const hasPreparedTimer = Boolean(timer?.seconds && timer.key === currentKey);
   const hasStartedTimer = Boolean(timer?.startedBy && timer?.startedAt && timer.seconds && timer.key === currentKey);
   const canControl = canControlAttempt();
-  const blockedSeconds = timerStartBlockedSeconds();
   if (els.timerStart) {
-    els.timerStart.disabled = !canControl || !hasPreparedTimer || hasStartedTimer || blockedSeconds > 0;
-    els.timerStart.textContent = blockedSeconds > 0 ? `Zeit starten (${blockedSeconds})` : "Zeit starten";
+    els.timerStart.disabled = !canControl || !hasPreparedTimer || hasStartedTimer;
+    els.timerStart.textContent = "Zeit starten";
   }
   if (els.timerToggle) {
     els.timerToggle.disabled = !canControl || !hasStartedTimer;
     els.timerToggle.textContent = timer?.paused ? "Zeit weiterlaufen lassen" : "Zeit pausieren";
   }
-}
-
-function timerStartBlockedSeconds() {
-  const until = new Date(state?.meta?.timerStartBlockedUntil || "").getTime();
-  if (!Number.isFinite(until)) return 0;
-  return Math.max(0, Math.ceil((until - Date.now()) / 1000));
 }
 
 function renderAttempt() {

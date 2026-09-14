@@ -19,6 +19,10 @@ Auf der PC-Seite wird zusätzlich ein QR-Code angezeigt. Der QR-Code öffnet nur
 
 Ein zweiter PC kann im gleichen WLAN die angezeigte Wettkampfleitungs-Adresse ohne `/judge` öffnen, zum Beispiel `http://192.168.178.53:8765/`. Beide PCs arbeiten dann live auf demselben lokalen Server. Im Setup wird angezeigt, ob ein weiterer PC online ist. Praktisch sollte trotzdem nur eine Person gleichzeitig denselben Datensatz bearbeiten, weil gleichzeitige Änderungen zuletzt gespeicherte Werte überschreiben können.
 
+Im Menü `Netzwerk` stehen unter `Zweiten PC und Beamer verbinden` die Adressen des Hosts für Wettkampfleitung und Live-Dashboard. Auf dem zweiten PC keinen eigenen Server starten. Das Dashboard unter `/dashboard` zeigt aktuellen Versuch, Restzeit, Entscheidung, nächste Versuche und Live-Wertung automatisch aus dem Host-Datenbestand an. Über `Vollbild` eignet es sich für den angeschlossenen Beamer. Auch auf dem Host öffnet der ständig sichtbare Link `Beamer-Dashboard` diese Ansicht. Unter `Bildschirme zuweisen` kann einer `/display`-Station ebenfalls `Live-Dashboard / Beamer` zugeordnet werden.
+
+Der Hauptkampfrichter kann die vorbereitete Versuchsuhr sofort starten; die bisherige 30-Sekunden-Sperre nach dem Eintragen eines Versuchs entfällt. Die Berechtigung zur Zeitsteuerung sowie die normale Versuchsdauer bleiben erhalten.
+
 Der Warteraum hat zwei getrennte Adressen:
 
 - `/warteraum` ist die Eingabe-Seite fuer Athleten/Trainer, um erlaubte Versuchsgewichte zu aendern.

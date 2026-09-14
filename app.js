@@ -102,11 +102,13 @@ const SCORING_MODES = {
 };
 const DISPLAY_ROLES = [
   { key: "", label: "Nicht zugewiesen" },
+  { key: "dashboard", label: "Live-Dashboard / Beamer" },
   { key: "plates", label: "Scheibenanzeige" },
   { key: "scoreboard", label: "Protokoll und Ergebnisse" },
   { key: "waitingRoom", label: "Warteraum-Anzeige" },
 ];
 const LOCAL_WINDOW_TARGETS = [
+  { key: "dashboard", label: "Live-Dashboard / Beamer", path: "/dashboard", windowName: "gewichtheben-dashboard", width: 1440, height: 900 },
   {
     key: "plates",
     label: "Scheibensteckeranzeige",
@@ -1985,7 +1987,7 @@ function recordCurrentAttempt() {
   state.meta.liveTechnique = { key: null, points: [null, null, null] };
   syncPhase();
   setAttemptTimerForNext(current.athlete.id);
-  state.meta.timerStartBlockedUntil = new Date(Date.now() + 30_000).toISOString();
+  state.meta.timerStartBlockedUntil = null;
   saveState();
   render();
 }
@@ -3733,6 +3735,8 @@ function renderConnection() {
     : judgeUrls.map((url) => url.replace(/\/judge$/, "/display"));
   const pcJudgeUrl = judgeUrls.find((url) => url.includes("localhost")) || "http://localhost:8765/judge";
   const phoneUrls = judgeUrls.filter((url) => !url.includes("localhost"));
+  const controlUrls = (sessionInfo?.controlUrls || phoneUrls.map((url) => url.replace(/\/judge$/, "/"))).filter((url) => !url.includes("localhost"));
+  const dashboardUrls = sessionInfo?.dashboardUrls || controlUrls.map((url) => `${url.replace(/\/$/, "")}/dashboard`);
   const wlanWeighUrls = weighUrls.filter((url) => !url.includes("localhost"));
   const wlanWaitingRoomDisplayUrls = waitingRoomDisplayUrls.filter((url) => !url.includes("localhost"));
   const wlanDisplayStationUrls = displayStationUrls.filter((url) => !url.includes("localhost"));
@@ -3742,6 +3746,16 @@ function renderConnection() {
   const slots = getRefereeSlots();
 
   els.connectionPanel.innerHTML = `
+    <div class="connection-list">
+      <h3>Zweiten PC und Beamer verbinden</h3>
+      <p class="muted">Am zweiten PC im gleichen WLAN eine dieser Host-Adressen öffnen. Dort keinen eigenen Server starten: Die Ansichten erhalten live die Wettkampfdaten dieses PCs.</p>
+      <p><strong>Wettkampfleitung am zweiten PC</strong></p>
+      ${controlUrls.map((url) => `<p class="connection-url"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></p>`).join("")}
+      <p><strong>Live-Dashboard für den Beamer</strong></p>
+      ${dashboardUrls.filter((url) => !url.includes("localhost")).map((url) => `<p class="connection-url"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></p>`).join("")}
+      <p><a class="ghost-button" href="/dashboard" target="_blank" rel="noopener">Dashboard auf diesem PC öffnen</a></p>
+      <p class="muted">Das Dashboard-Fenster auf den Beamer verschieben und Vollbild wählen. Alternativ eine Bildschirmstation verbinden und „Live-Dashboard / Beamer“ zuweisen.</p>
+    </div>
     <div class="connection-list">
       <p class="eyebrow">Handys verbinden</p>
       <h3>QR-Code scannen</h3>
@@ -3834,6 +3848,7 @@ function renderControlClientStatus() {
         <span class="${own ? "ok-text" : "muted"}">${own ? "verbunden" : "verbinde..."}</span>
       </div>
       ${weighRows}
+      ${clients.filter((client) => controlClientIdentity(client) !== ownIdentity).map((client, index) => `<div class="judge-slot"><strong>Weiterer PC ${index + 1}</strong><span class="ok-text">${escapeHtml(client.address || "Netzwerk")} · live verbunden</span></div>`).join("")}
     </div>
   `;
 }
@@ -7546,7 +7561,7 @@ function normalizeState(input) {
   output.meta.scoringMode = normalizeScoringMode(output.meta.scoringMode);
   if (output.meta.scoringMode === SCORING_MODES.IWF) output.meta.refereeCount = 3;
   output.meta.childTechniqueEnabled = Boolean(output.meta.childTechniqueEnabled);
-  output.meta.timerStartBlockedUntil = input?.meta?.timerStartBlockedUntil || null;
+  output.meta.timerStartBlockedUntil = null;
   output.meta.displayAssignments = normalizeDisplayAssignments(input?.meta?.displayAssignments || {});
   if (output.meta.scoringMode === SCORING_MODES.IWF) output.meta.judgeConnections.solo = null;
 

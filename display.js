@@ -4,12 +4,14 @@ const DISPLAY_ID_KEY = "gewichtheben-display-station-id";
 const DISPLAY_NAME_KEY = "gewichtheben-display-station-name";
 
 const ROLE_PATHS = {
+  dashboard: "/dashboard",
   plates: "/plates",
   scoreboard: "/scoreboard",
   waitingRoom: "/pi",
 };
 
 const ROLE_LABELS = {
+  dashboard: "Live-Dashboard / Beamer",
   plates: "Scheibenanzeige",
   scoreboard: "Protokoll und Ergebnisse",
   waitingRoom: "Warteraum-Anzeige",

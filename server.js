@@ -26,7 +26,7 @@ const WEIGH_CLIENT_TIMEOUT_MS = 15000;
 const DISPLAY_CLIENTS = new Map();
 const DISPLAY_CLIENT_TIMEOUT_MS = 15000;
 const MAX_WAITING_ROOM_CHANGES = 2;
-const DISPLAY_ROLES = new Set(["", "plates", "scoreboard", "waitingRoom"]);
+const DISPLAY_ROLES = new Set(["", "plates", "scoreboard", "waitingRoom", "dashboard"]);
 const YOUTUBE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
@@ -986,7 +986,7 @@ async function recordAttemptFromJudge(req, res) {
   state.meta.liveTechnique = { key: null, points: [null, null, null] };
   syncPhase();
   setAttemptTimerForNext(current.athlete.id);
-  state.meta.timerStartBlockedUntil = new Date(Date.now() + 30_000).toISOString();
+  state.meta.timerStartBlockedUntil = null;
   await persistState();
   broadcastState();
   sendJson(res, 200, { ok: true, attempt });
@@ -1012,11 +1012,6 @@ async function startTimerFromJudge(req, res) {
   ensureAttemptTimerForCurrent();
   const current = getCurrentAttempt();
   const timer = state.meta.attemptTimer;
-  const blockedSeconds = timerStartBlockedSeconds();
-  if (blockedSeconds > 0) {
-    sendJson(res, 409, { error: `Zeitstart erst in ${blockedSeconds} Sekunden moeglich.`, blockedSeconds });
-    return;
-  }
   if (!current || !timer?.seconds || timer.key !== attemptKey(current)) {
     sendJson(res, 400, { error: "Keine vorbereitete Zeit vorhanden." });
     return;
@@ -1101,12 +1096,6 @@ function remainingTimerSeconds(timer) {
   if (!Number.isFinite(startedAt)) return parseInteger(timer.seconds) || 0;
   const elapsed = Math.floor((Date.now() - startedAt) / 1000);
   return Math.max(0, (parseInteger(timer.seconds) || 0) - elapsed);
-}
-
-function timerStartBlockedSeconds(source = state) {
-  const until = new Date(source?.meta?.timerStartBlockedUntil || "").getTime();
-  if (!Number.isFinite(until)) return 0;
-  return Math.max(0, Math.ceil((until - Date.now()) / 1000));
 }
 
 async function addTeam(req, res) {
@@ -1476,6 +1465,8 @@ async function serveStatic(urlPath, res) {
           ? "weigh.html"
         : urlPath === "/display"
           ? "display.html"
+        : urlPath === "/dashboard"
+          ? "dashboard.html"
         : urlPath === "/plates"
           ? "plates.html"
           : urlPath === "/scoreboard"
@@ -2604,7 +2595,7 @@ function normalizeState(input) {
   next.meta.scoringMode = next.meta.scoringMode === "IWF" ? "IWF" : "CLUB";
   if (next.meta.scoringMode === "IWF") next.meta.refereeCount = 3;
   next.meta.childTechniqueEnabled = Boolean(next.meta.childTechniqueEnabled);
-  next.meta.timerStartBlockedUntil = input?.meta?.timerStartBlockedUntil || null;
+  next.meta.timerStartBlockedUntil = null;
   next.meta.displayAssignments = normalizeDisplayAssignments(input?.meta?.displayAssignments || {});
   if (next.meta.scoringMode === "IWF") next.meta.judgeConnections.solo = null;
 
@@ -3274,6 +3265,7 @@ function getSessionPayload(req) {
     code: sessionCode,
     controlUrl: `http://${host}/`,
     controlUrls: getLanUrls("/"),
+    dashboardUrls: getLanUrls("/dashboard"),
     judgeUrl: `http://${host}/judge`,
     urls: getLanUrls("/judge"),
     weighUrl: `http://${host}/waage`,
