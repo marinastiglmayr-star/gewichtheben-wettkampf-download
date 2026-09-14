@@ -3722,6 +3722,9 @@ function renderConnection() {
   if (!els.connectionPanel) return;
   els.connectionPanel.classList.toggle("hidden", !serverMode);
   if (!serverMode) return;
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed &&
+      (els.connectionPanel.contains(selection.anchorNode) || els.connectionPanel.contains(selection.focusNode))) return;
 
   const judges = sessionInfo?.judges || state.meta.judgeConnections || {};
   const judgeUrls = sessionInfo?.urls?.length ? sessionInfo.urls : [sessionInfo?.judgeUrl].filter(Boolean);
@@ -3746,7 +3749,7 @@ function renderConnection() {
   const qrUrl = phoneUrls[0] || pcJudgeUrl;
   const slots = getRefereeSlots();
 
-  els.connectionPanel.innerHTML = `
+  const markup = `
     <header class="network-intro">
       <div><p class="eyebrow">Netzwerk</p><h3>Geräte verbinden</h3></div>
       <p>Alle Geräte müssen im selben lokalen Netzwerk sein. Den passenden Link kopieren und auf dem jeweiligen Gerät öffnen.</p>
@@ -3790,12 +3793,16 @@ function renderConnection() {
     </article>
     <section class="network-footer"><h3>Verbindungsstatus</h3>${renderControlClientStatus()}<p>Seite nicht erreichbar? Host eingeschaltet lassen, Adressen aus diesem Menü verwenden und prüfen, ob beide Geräte im selben Netzwerk sind. Gastnetz und Windows-Firewall können Verbindungen blockieren.</p></section>
   `;
+  if (renderConnection.lastMarkup !== markup) {
+    els.connectionPanel.innerHTML = markup;
+    renderConnection.lastMarkup = markup;
+  }
 }
 
 function renderConnectionLinks(urls, label) {
   const uniqueUrls = [...new Set(urls.filter(Boolean))];
   if (!uniqueUrls.length) return '<p class="warning-text">Keine Netzwerkadresse verfügbar. Netzwerkverbindung am Host prüfen.</p>';
-  return uniqueUrls.map((url) => `<div class="network-link-row"><code class="network-link-address">${escapeHtml(url)}</code><div class="network-link-actions"><button type="button" class="ghost-button" data-action="copy-connection-link" data-url="${escapeHtml(url)}" aria-label="${escapeHtml(label)}-Link kopieren">Kopieren</button><a class="ghost-button" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="${escapeHtml(label)} öffnen">Öffnen ↗</a></div></div>`).join("");
+  return uniqueUrls.map((url) => `<div class="network-link-row"><a class="network-link-address" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a><div class="network-link-actions"><button type="button" class="ghost-button" data-action="copy-connection-link" data-url="${escapeHtml(url)}" aria-label="${escapeHtml(label)}-Link kopieren">Kopieren</button><a class="ghost-button" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="${escapeHtml(label)} öffnen">Öffnen ↗</a></div></div>`).join("");
 }
 
 async function copyConnectionLink(url) {
