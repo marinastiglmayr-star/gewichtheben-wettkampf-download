@@ -42,8 +42,10 @@ test("live updates do not rebuild an open display dropdown", () => {
   assert.doesNotMatch(stateSync, /renderDisplayRoutingDialog/);
 });
 
-test("network cards and all three display fields use equal grid tracks", () => {
+test("secondary network cards stay compact beside the larger QR card", () => {
   const styles = fs.readFileSync(path.join(__dirname, "..", "styles.css"), "utf8");
-  assert.match(styles, /\.network-card-grid\s*\{[^}]*grid-auto-rows:\s*1fr/);
+  assert.match(styles, /\.network-card-grid\s*\{[^}]*grid-template-columns:\s*minmax\(460px,[^}]*minmax\(0,\s*1\.65fr\)/);
+  assert.match(styles, /\.network-compact-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /\.network-card-compact\s*\{[^}]*grid-template-rows:\s*auto auto auto auto/);
   assert.match(styles, /\.fixed-display-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
 });

@@ -16,7 +16,7 @@ test("network heartbeats keep the DOM stable and do not replace selected text", 
   const panel = { classList: { toggle() {} }, contains: () => true, set innerHTML(value) { writes++; } };
   const ctx = vm.createContext({ els: { connectionPanel: panel }, serverMode: true,
     window: { getSelection: () => selection }, state: { meta: {} }, sessionInfo: { code: "1234", urls: ["http://192.168.1.2:8765/judge"] },
-    escapeHtml: String, getRefereeSlots: () => [], renderControlClientStatus: () => "", renderConnectionLinks: () => "", renderFixedDisplaySlots: () => "" });
+    LOCAL_WINDOW_TARGETS: [], escapeHtml: String, getRefereeSlots: () => [], renderControlClientStatus: () => "", renderConnectionLinks: () => "", renderFixedDisplaySlots: () => "" });
   vm.runInContext(extract("app.js", "renderConnection"), ctx);
   ctx.renderConnection();
   ctx.renderConnection();
