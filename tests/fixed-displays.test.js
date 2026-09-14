@@ -33,3 +33,17 @@ test("fixed display controls expose all three copyable links and all supported v
   for (const role of roles.slice(1)) assert.match(roleBlock, new RegExp(`key: "${role}"`));
   assert.doesNotMatch(roleBlock, /dashboard|waitingInput/);
 });
+
+test("live updates do not rebuild an open display dropdown", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+  const eventStream = source.slice(source.indexOf("function startEventStream"), source.indexOf("function startServerPolling"));
+  const stateSync = source.slice(source.indexOf("function renderAfterStateSync"), source.indexOf("function shouldDeferRenderForActiveInput"));
+  assert.doesNotMatch(eventStream, /renderDisplayRoutingDialog/);
+  assert.doesNotMatch(stateSync, /renderDisplayRoutingDialog/);
+});
+
+test("network cards and all three display fields use equal grid tracks", () => {
+  const styles = fs.readFileSync(path.join(__dirname, "..", "styles.css"), "utf8");
+  assert.match(styles, /\.network-card-grid\s*\{[^}]*grid-auto-rows:\s*1fr/);
+  assert.match(styles, /\.fixed-display-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+});
