@@ -242,6 +242,11 @@ async function route(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/pdf" && req.method === "POST") {
+    await createPdfDownload(req, res);
+    return;
+  }
+
   if (url.pathname === "/api/youtube/status" && req.method === "GET") {
     sendJson(res, 200, getYoutubePayload());
     return;
@@ -1523,6 +1528,90 @@ function sendJson(res, status, payload) {
 function sendHtml(res, status, html) {
   res.writeHead(status, { "Content-Type": "text/html;charset=utf-8" });
   res.end(html);
+}
+
+async function createPdfDownload(req, res) {
+  let tempDir = "";
+  try {
+    const payload = await readJson(req);
+    const html = String(payload.html || "");
+    if (!/^\s*<!doctype html/i.test(html) && !/^\s*<html/i.test(html)) throw new Error("Ungültiger Listeninhalt.");
+    const filename = sanitizePdfFilename(payload.filename);
+    const browserPath = await findPdfBrowser();
+    if (!browserPath) throw new Error("Für die PDF-Erstellung wird Microsoft Edge oder Google Chrome benötigt.");
+
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "gewichtheben-pdf-"));
+    const htmlPath = path.join(tempDir, "liste.html");
+    const pdfPath = path.join(tempDir, "liste.pdf");
+    const profilePath = path.join(tempDir, "browser-profile");
+    await fs.writeFile(htmlPath, html, "utf8");
+    await printHtmlToPdf(browserPath, htmlPath, pdfPath, profilePath);
+    const pdf = await fs.readFile(pdfPath);
+    if (pdf.length < 5 || pdf.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("Die PDF-Datei wurde nicht korrekt erzeugt.");
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Content-Length": pdf.length,
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    });
+    res.end(pdf);
+  } catch (error) {
+    sendJson(res, 500, { error: error.message || "PDF konnte nicht erstellt werden." });
+  } finally {
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+function sanitizePdfFilename(value) {
+  const base = path.basename(String(value || "liste.pdf")).replace(/[^a-zA-Z0-9äöüÄÖÜß._-]+/g, "-");
+  return (base || "liste.pdf").replace(/(?:\.pdf)?$/i, ".pdf");
+}
+
+async function findPdfBrowser() {
+  const candidates = [
+    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, "Microsoft", "Edge", "Application", "msedge.exe"),
+    process.env["PROGRAMFILES(X86)"] && path.join(process.env["PROGRAMFILES(X86)"], "Microsoft", "Edge", "Application", "msedge.exe"),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Microsoft", "Edge", "Application", "msedge.exe"),
+    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, "Google", "Chrome", "Application", "chrome.exe"),
+    process.env["PROGRAMFILES(X86)"] && path.join(process.env["PROGRAMFILES(X86)"], "Google", "Chrome", "Application", "chrome.exe"),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe"),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch (error) {
+      // Try the next standard browser location.
+    }
+  }
+  return "";
+}
+
+function printHtmlToPdf(browserPath, htmlPath, pdfPath, profilePath) {
+  const fileUrl = new URL(`file:///${htmlPath.replace(/\\/g, "/")}`).href;
+  const args = [
+    "--headless=new",
+    "--no-sandbox",
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--disable-dev-shm-usage",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--no-pdf-header-footer",
+    `--user-data-dir=${profilePath}`,
+    `--print-to-pdf=${pdfPath}`,
+    fileUrl,
+  ];
+  return new Promise((resolve, reject) => {
+    const child = spawn(browserPath, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr.trim() || `PDF-Browser wurde mit Code ${code} beendet.`));
+    });
+  });
 }
 
 function defaultYoutubeConfig() {

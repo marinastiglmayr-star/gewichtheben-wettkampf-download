@@ -2561,7 +2561,7 @@ function guidedStartStep() {
     hint: "Pruefe Meldeliste, Starterlisten, Waagewerte, Kampfrichter und Anzeigen ein letztes Mal. Wenn keine Warnung mehr angezeigt wird, kann der Wettkampf gestartet werden.",
     checks: [
       guidedCheck("Startliste", startWarning ? "open" : "ok", startWarning || "Alle Pflichtdaten sind vorhanden."),
-      guidedCheck("Listen", "warn", "Meldeliste und Starterlisten koennen oben in der Menueleiste erzeugt und ausgedruckt werden."),
+      guidedCheck("Listen", "warn", "Meldeliste und Starterlisten koennen oben in der Menueleiste als PDF-Datei erzeugt werden."),
       guidedCheck("Sicherungen", "ok", "Nach jedem Versuch wird automatisch gesichert."),
     ],
   };
@@ -3752,37 +3752,50 @@ function renderConnection() {
       <p>Alle Geräte müssen im selben lokalen Netzwerk sein. Den passenden Link kopieren und auf dem jeweiligen Gerät öffnen.</p>
     </header>
     <div class="network-card-grid">
-    <article class="network-card">
+    <article class="network-card network-card-primary">
       <div class="network-card-heading"><span class="network-number">01</span><div><h3>Kampfrichter</h3><p>Abstimmen und Versuchsuhr bedienen</p></div></div>
       <div class="network-pairing"><img class="qr-code" src="/api/qr.svg?data=${encodeURIComponent(qrUrl)}" alt="QR-Code zur Kampfrichter-App" /><div><span class="eyebrow">Verbindungscode</span><strong class="connection-code">${escapeHtml(code)}</strong><p>QR-Code scannen und diesen Code am Handy eingeben.</p><button type="button" class="ghost-button" data-action="rotate-code">Code erneuern</button></div></div>
       ${renderConnectionLinks(phoneUrls, "Kampfrichter")}
       <div class="judge-slots">${slots.map((slot) => { const judge = judges[slot.key]; return `<div class="judge-slot"><strong>${slot.label}</strong><span class="${judge ? "ok-text" : "muted"}">${judge ? escapeHtml(judge.name) : "nicht verbunden"}</span></div>`; }).join("")}</div>
     </article>
-    <article class="network-card">
+    <div class="network-compact-grid">
+    <article class="network-card network-card-compact">
       <div class="network-card-heading"><span class="network-number">02</span><div><h3>Waage</h3><p>Wiegedaten auf einem weiteren Gerät erfassen</p></div></div>
       <p>Auf dem Waage-PC oder Tablet öffnen und mit dem Verbindungscode anmelden.</p>
       ${renderConnectionLinks(wlanWeighUrls, "Waage")}
       <div class="network-note">Die Wettkampfleitung erhält gespeicherte Waagedaten automatisch.</div>
     </article>
-    <article class="network-card">
+    <article class="network-card network-card-compact">
       <div class="network-card-heading"><span class="network-number">03</span><div><h3>Zweiter PC</h3><p>Wettkampfleitung mit Live-Daten</p></div></div>
       <p>Diese Host-Adresse auf dem zweiten PC öffnen. Dort keinen eigenen Server starten. Änderungen werden zwischen beiden PCs synchronisiert.</p>
       ${renderConnectionLinks(controlUrls, "Wettkampfleitung")}
       <div class="network-note">Denselben Athleten möglichst nur an einem PC gleichzeitig bearbeiten.</div>
     </article>
-    <article class="network-card">
+    <article class="network-card network-card-compact">
       <div class="network-card-heading"><span class="network-number">04</span><div><h3>Warteraum auf dem Pi</h3><p>Feste Anzeige für Athleten und Trainer</p></div></div>
       <p>Diesen Link im Browser des Raspberry Pi öffnen, wenn dort immer der Warteraum angezeigt werden soll.</p>
       ${renderConnectionLinks(wlanWaitingRoomDisplayUrls, "Warteraum")}
       <div class="network-note">Startet direkt. Keine Anmeldung und keine Zuweisung nötig.</div>
     </article>
     </div>
+    </div>
     <article class="network-card network-card-displays">
-      <div class="network-card-heading"><span class="network-number">05</span><div><h3>Steuerbare Bildschirmstation</h3><p>Ansicht vom Host aus auswählen</p></div></div>
-      <p>Für einen Pi oder Bildschirm, dessen Ansicht du wechseln möchtest: Für jede Adresse hier die Ansicht auswählen und den Link auf dem jeweiligen Pi öffnen. Mehrere Geräte mit derselben Adresse zeigen dieselbe Ansicht.</p>
-      ${renderFixedDisplaySlots()}
-      <div class="network-actions"><button type="button" class="primary-button" data-action="open-display-routing">Display-Ansichten in großem Fenster zuweisen</button></div>
-      <div class="network-note">Die Auswahl wird sofort gespeichert. Bis eine Ansicht gewählt ist, zeigt der jeweilige Pi eine Warteseite.</div>
+      <div class="network-card-heading"><span class="network-number">05</span><div><h3>Bildschirme und Fenster zuweisen</h3><p>Über Netzwerk oder direkt am Host-PC</p></div></div>
+      <div class="display-method-grid">
+        <section class="display-method-card display-method-network">
+          <div><span class="eyebrow">Über Netzwerk</span><h4>Pi oder Netzwerkbildschirm</h4></div>
+          <p>Auf dem Gerät Display 1, 2 oder 3 öffnen. Die gewünschte Ansicht wird hier am Host festgelegt und live über WLAN oder LAN übertragen.</p>
+          ${renderFixedDisplaySlots()}
+          <button type="button" class="primary-button" data-action="open-display-routing">Netzwerk-Displays in großem Fenster zuweisen</button>
+        </section>
+        <section class="display-method-card display-method-local">
+          <div><span class="eyebrow">Direkt am Host-PC</span><h4>Angeschlossener Monitor</h4></div>
+          <p>Für Monitore oder Beamer, die per HDMI oder DisplayPort direkt mit diesem PC verbunden sind. Die benötigten Fenster werden auf dem gewählten Bildschirm geöffnet.</p>
+          <div class="local-target-list">${LOCAL_WINDOW_TARGETS.map((target) => `<span>${escapeHtml(target.label)}</span>`).join("")}</div>
+          <button type="button" class="ghost-button" data-action="open-window-screen-settings">Lokale Fenster und Bildschirme zuordnen</button>
+        </section>
+      </div>
+      <div class="network-note">Netzwerk-Zuweisungen gelten für Display 1–3. Lokale Zuweisungen gelten nur für die direkt an diesem Host-PC angeschlossenen Bildschirme.</div>
     </article>
     <section class="network-footer"><h3>Verbindungsstatus</h3>${renderControlClientStatus()}<p>Seite nicht erreichbar? Host eingeschaltet lassen, Adressen aus diesem Menü verwenden und prüfen, ob beide Geräte im selben Netzwerk sind. Gastnetz und Windows-Firewall können Verbindungen blockieren.</p></section>
   `;
@@ -6633,46 +6646,50 @@ async function restoreBackup(file) {
   }
 }
 
-function generateReport() {
-  const filename = `${slugify(state.meta.eventName || "gewichtheben-wettkampf")}-ergebnisliste.html`;
-  const blob = new Blob([buildReportHtml()], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  showToast("Ergebnisliste wurde erstellt.");
+async function generateReport() {
+  const filename = `${slugify(state.meta.eventName || "gewichtheben-wettkampf")}-ergebnisliste.pdf`;
+  await downloadPrintablePdf(buildReportHtml(), filename, "Ergebnisliste");
 }
 
-function generateStartLists() {
-  const filename = `${slugify(state.meta.eventName || "gewichtheben-wettkampf")}-starterlisten.html`;
-  const blob = new Blob([buildStartListsHtml()], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  showToast("Starterlisten wurden erstellt.");
+async function generateStartLists() {
+  const filename = `${slugify(state.meta.eventName || "gewichtheben-wettkampf")}-starterlisten.pdf`;
+  await downloadPrintablePdf(buildStartListsHtml(), filename, "Starterlisten");
 }
 
-function generateRegistrationList() {
-  const filename = `${slugify(state.meta.eventName || "gewichtheben-wettkampf")}-meldeliste.html`;
-  const blob = new Blob([buildRegistrationListHtml()], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  showToast("Meldeliste wurde erstellt.");
+async function generateRegistrationList() {
+  const filename = `${slugify(state.meta.eventName || "gewichtheben-wettkampf")}-meldeliste.pdf`;
+  await downloadPrintablePdf(buildRegistrationListHtml(), filename, "Meldeliste");
+}
+
+async function downloadPrintablePdf(html, filename, label) {
+  if (!serverMode) {
+    showToast("PDF-Ausgabe ist nur in der gestarteten Wettkampf-App verfügbar.");
+    return;
+  }
+  showToast(`${label} wird als PDF erstellt.`);
+  try {
+    const response = await fetch("/api/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html, filename }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || "PDF konnte nicht erstellt werden.");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`${label} wurde als PDF erstellt.`);
+  } catch (error) {
+    showToast(error.message || "PDF konnte nicht erstellt werden.");
+  }
 }
 
 function buildRegistrationListHtml() {

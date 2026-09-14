@@ -1,6 +1,6 @@
 # Gewichtheben Wettkampf-App
 
-Lokale WLAN-App für einen Gewichtheber-Wettkampf mit PC-Hauptprogramm, Kampfrichter-Handys, zweitem PC, automatischer Aufrufreihenfolge, Versuchsuhrzeiten und HTML-Ergebnisliste.
+Lokale WLAN-App für einen Gewichtheber-Wettkampf mit PC-Hauptprogramm, Kampfrichter-Handys, zweitem PC, automatischer Aufrufreihenfolge, Versuchsuhrzeiten und PDF-Listen.
 
 ## Starten
 
@@ -73,7 +73,7 @@ Wenn die Adresse am Handy nicht lädt:
 - Bei einem einzelnen Kampfrichter wird nur ein Kampfrichterfeld ohne Links/Mitte/Rechts-Position angezeigt.
 - Zwei oder drei weiße Stimmen ergeben einen gültigen Versuch.
 - Das Scheibenfenster steckt mit der zum Athleten passenden Stange und den im Setup hinterlegten Scheiben; 1,25 kg ist standardmäßig grau.
-- Starterlisten und die Ergebnisliste können oben in der Menüleiste als HTML-Datei ausgegeben und gedruckt werden.
+- Meldeliste, Starterlisten und Ergebnisliste werden oben in der Menüleiste direkt als PDF-Dateien ausgegeben.
 - Die Ergebnisliste wird gruppenweise ausgegeben. Darin werden zusätzlich die relativ stärkste Frau und der relativ stärkste Mann gruppenübergreifend ausgewiesen.
 - In der Ergebnisliste werden Zweikampf, Relativabzug, Ergebnis nach Abzug sowie bei aktivierter Technikwertung Technikpunkte und Gesamtwertung getrennt angezeigt.
 - Die Spalte `Technik` erscheint nur, wenn Technikwertung im Setup aktiv ist und mindestens eine betroffene Kategorie im Menü `Geschlechter / Kategorien` Technikwertung erlaubt.
