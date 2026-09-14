@@ -672,6 +672,7 @@ function handleClick(event) {
   if (!button) return;
 
   const action = button.dataset.action;
+  if (action === "copy-connection-link") { void copyConnectionLink(button.dataset.url); return; }
   const id = button.dataset.id;
 
   if (action === "edit-athlete") editAthlete(id);
@@ -3746,76 +3747,90 @@ function renderConnection() {
   const slots = getRefereeSlots();
 
   els.connectionPanel.innerHTML = `
-    <div class="connection-list">
-      <h3>Zweiten PC und Beamer verbinden</h3>
-      <p class="muted">Am zweiten PC im gleichen WLAN eine dieser Host-Adressen öffnen. Dort keinen eigenen Server starten: Die Ansichten erhalten live die Wettkampfdaten dieses PCs.</p>
-      <p><strong>Wettkampfleitung am zweiten PC</strong></p>
-      ${controlUrls.map((url) => `<p class="connection-url"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></p>`).join("")}
-      <p><strong>Live-Dashboard für den Beamer</strong></p>
-      ${dashboardUrls.filter((url) => !url.includes("localhost")).map((url) => `<p class="connection-url"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></p>`).join("")}
-      <p><a class="ghost-button" href="/dashboard" target="_blank" rel="noopener">Dashboard auf diesem PC öffnen</a></p>
-      <p class="muted">Das Dashboard-Fenster auf den Beamer verschieben und Vollbild wählen. Alternativ eine Bildschirmstation verbinden und „Live-Dashboard / Beamer“ zuweisen.</p>
-    </div>
-    <div class="connection-list">
-      <p class="eyebrow">Handys verbinden</p>
-      <h3>QR-Code scannen</h3>
-      <span class="connection-code">${escapeHtml(code)}</span>
-      ${
-        qrUrl
-          ? `<img class="qr-code" src="/api/qr.svg?data=${encodeURIComponent(qrUrl)}" alt="QR-Code für Kampfrichter-App" />
-             <p class="muted">QR-Code öffnet die Kampfrichter-App. Code am Handy manuell eingeben.</p>`
-          : `<span class="connection-code">${escapeHtml(code)}</span>`
-      }
-      <button type="button" class="ghost-button" data-action="rotate-code">Neuen Code erzeugen</button>
-    </div>
-    <div class="connection-list">
-      <h3>Kampfrichter-App</h3>
-      <p class="muted">PC-Testadresse</p>
-      <p class="connection-url">${escapeHtml(pcJudgeUrl)}</p>
-      <p class="muted">Handy im gleichen WLAN</p>
-      ${
-        phoneUrls.length
-          ? phoneUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
-          : `<p class="warning-text">Keine WLAN-Adresse gefunden.</p>`
-      }
-      <p class="muted">Waage im gleichen WLAN</p>
-      ${
-        wlanWeighUrls.length
-          ? wlanWeighUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
-          : `<p class="warning-text">Keine Waage-WLAN-Adresse gefunden.</p>`
-      }
-      <p class="muted">Bildschirmstation fuer Pi / Beamer</p>
-      ${
-        wlanDisplayStationUrls.length
-          ? wlanDisplayStationUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
-          : `<p class="warning-text">Keine Bildschirmstation-Adresse gefunden.</p>`
-      }
-      <button type="button" class="ghost-button" data-action="open-display-routing">Bildschirme zuweisen (${displayClients.length})</button>
-      <button type="button" class="ghost-button" data-action="open-window-screen-settings">PC-Fenster zuordnen</button>
-      <p class="muted">Direktlink Warteraum-Anzeige</p>
-      ${
-        wlanWaitingRoomDisplayUrls.length
-          ? wlanWaitingRoomDisplayUrls.map((url) => `<p class="connection-url">${escapeHtml(url)}</p>`).join("")
-          : `<p class="warning-text">Keine Pi-Anzeige-Adresse gefunden.</p>`
-      }
-      <p class="muted">Der Direktlink zeigt nur die Warteraum-Anzeige und benoetigt keinen Login-Code.</p>
-      ${renderControlClientStatus()}
-      <p class="muted">Wenn das Handy die Seite nicht lädt: Windows-Firewall für node.exe in privaten Netzwerken erlauben und kein Gast-WLAN verwenden.</p>
-      <div class="judge-slots">
-        ${slots
-          .map((slot) => {
-            const judge = judges[slot.key];
-            return `
-              <div class="judge-slot">
-                <strong>${slot.label}</strong>
-                <span class="${judge ? "ok-text" : "muted"}">${judge ? escapeHtml(judge.name) : "nicht verbunden"}</span>
-              </div>
-            `;
-          })
-          .join("")}
-      </div>
-    </div>
+    <header class="network-intro">
+      <div><p class="eyebrow">Netzwerk</p><h3>Geräte verbinden</h3></div>
+      <p>Alle Geräte müssen im selben lokalen Netzwerk sein. Den passenden Link kopieren und auf dem jeweiligen Gerät öffnen.</p>
+    </header>
+    <article class="network-card">
+      <div class="network-card-heading"><span class="network-number">01</span><div><h3>Kampfrichter</h3><p>Abstimmen und Versuchsuhr bedienen</p></div></div>
+      <div class="network-pairing"><img class="qr-code" src="/api/qr.svg?data=${encodeURIComponent(qrUrl)}" alt="QR-Code zur Kampfrichter-App" /><div><span class="eyebrow">Verbindungscode</span><strong class="connection-code">${escapeHtml(code)}</strong><p>QR-Code scannen und diesen Code am Handy eingeben.</p><button type="button" class="ghost-button" data-action="rotate-code">Code erneuern</button></div></div>
+      ${renderConnectionLinks(phoneUrls, "Kampfrichter")}
+      <div class="judge-slots">${slots.map((slot) => { const judge = judges[slot.key]; return `<div class="judge-slot"><strong>${slot.label}</strong><span class="${judge ? "ok-text" : "muted"}">${judge ? escapeHtml(judge.name) : "nicht verbunden"}</span></div>`; }).join("")}</div>
+    </article>
+    <article class="network-card">
+      <div class="network-card-heading"><span class="network-number">02</span><div><h3>Waage</h3><p>Wiegedaten auf einem weiteren Gerät erfassen</p></div></div>
+      <p>Auf dem Waage-PC oder Tablet öffnen und mit dem Verbindungscode anmelden.</p>
+      ${renderConnectionLinks(wlanWeighUrls, "Waage")}
+      <div class="network-note">Die Wettkampfleitung erhält gespeicherte Waagedaten automatisch.</div>
+    </article>
+    <article class="network-card">
+      <div class="network-card-heading"><span class="network-number">03</span><div><h3>Zweiter PC</h3><p>Wettkampfleitung mit Live-Daten</p></div></div>
+      <p>Diese Host-Adresse auf dem zweiten PC öffnen. Dort keinen eigenen Server starten. Änderungen werden zwischen beiden PCs synchronisiert.</p>
+      ${renderConnectionLinks(controlUrls, "Wettkampfleitung")}
+      <div class="network-note">Denselben Athleten möglichst nur an einem PC gleichzeitig bearbeiten.</div>
+    </article>
+    <article class="network-card">
+      <div class="network-card-heading"><span class="network-number">04</span><div><h3>Beamer-Dashboard</h3><p>Aktueller Versuch, Uhr und Live-Wertung</p></div></div>
+      <p>Direkt auf dem Host oder Beamer-PC öffnen. Das Fenster auf den Beamer verschieben und „Vollbild“ wählen.</p>
+      ${renderConnectionLinks(dashboardUrls.filter((url) => !url.includes("localhost")), "Beamer-Dashboard")}
+      <div class="network-note">Startet direkt. Keine Anmeldung und keine Zuweisung nötig.</div>
+    </article>
+    <article class="network-card">
+      <div class="network-card-heading"><span class="network-number">05</span><div><h3>Warteraum auf dem Pi</h3><p>Feste Anzeige für Athleten und Trainer</p></div></div>
+      <p>Diesen Link im Browser des Raspberry Pi öffnen, wenn dort immer der Warteraum angezeigt werden soll.</p>
+      ${renderConnectionLinks(wlanWaitingRoomDisplayUrls, "Warteraum")}
+      <div class="network-note">Startet direkt. Keine Anmeldung und keine Zuweisung nötig.</div>
+    </article>
+    <article class="network-card">
+      <div class="network-card-heading"><span class="network-number">06</span><div><h3>Steuerbare Bildschirmstation</h3><p>Ansicht vom Host aus auswählen</p></div></div>
+      <p>Für einen Pi oder Bildschirm, dessen Ansicht du wechseln möchtest: Link dort öffnen, anschließend hier die Anzeige zuweisen.</p>
+      ${renderConnectionLinks(wlanDisplayStationUrls, "Bildschirmstation")}
+      <div class="network-actions"><button type="button" class="primary-button" data-action="open-display-routing">Ansicht zuweisen (${displayClients.length})</button><button type="button" class="ghost-button" data-action="open-window-screen-settings">Lokale Fenster zuordnen</button></div>
+      <div class="network-note">Bis zur Zuweisung zeigt die Station eine Warteseite.</div>
+    </article>
+    <section class="network-footer"><h3>Verbindungsstatus</h3>${renderControlClientStatus()}<p>Seite nicht erreichbar? Host eingeschaltet lassen, Adressen aus diesem Menü verwenden und prüfen, ob beide Geräte im selben Netzwerk sind. Gastnetz und Windows-Firewall können Verbindungen blockieren.</p></section>
   `;
+}
+
+function renderConnectionLinks(urls, label) {
+  const uniqueUrls = [...new Set(urls.filter(Boolean))];
+  if (!uniqueUrls.length) return '<p class="warning-text">Keine Netzwerkadresse verfügbar. Netzwerkverbindung am Host prüfen.</p>';
+  return uniqueUrls.map((url) => `<div class="network-link-row"><code class="network-link-address">${escapeHtml(url)}</code><div class="network-link-actions"><button type="button" class="ghost-button" data-action="copy-connection-link" data-url="${escapeHtml(url)}" aria-label="${escapeHtml(label)}-Link kopieren">Kopieren</button><a class="ghost-button" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="${escapeHtml(label)} öffnen">Öffnen ↗</a></div></div>`).join("");
+}
+
+async function copyConnectionLink(url) {
+  if (!url) return;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      copyConnectionLinkLegacy(url);
+    }
+    showToast("Link kopiert.");
+  } catch {
+    try {
+      copyConnectionLinkLegacy(url);
+      showToast("Link kopiert.");
+    } catch {
+      window.prompt("Automatisches Kopieren ist hier gesperrt. Diesen Link kopieren:", url);
+    }
+  }
+}
+
+function copyConnectionLinkLegacy(url) {
+  const previousFocus = document.activeElement;
+  const field = document.createElement("textarea");
+  field.value = url;
+  field.setAttribute("readonly", "");
+  field.style.cssText = "position:fixed;left:-9999px;top:0;";
+  document.body.appendChild(field);
+  try {
+    field.select();
+    if (!document.execCommand("copy")) throw new Error("Clipboard unavailable");
+  } finally {
+    field.remove();
+    previousFocus?.focus?.({ preventScroll: true });
+  }
 }
 
 function renderControlClientStatus() {
@@ -3879,7 +3894,7 @@ function renderDisplayRoutingDialog() {
         <p class="muted">Noch keine Bildschirmstation verbunden.</p>
         ${
           displayUrls.length
-            ? `<p class="connection-url">${escapeHtml(displayUrls[0])}</p>`
+            ? renderConnectionLinks(displayUrls, "Bildschirmstation")
             : `<p class="warning-text">Keine Netzwerkadresse gefunden.</p>`
         }
       </div>

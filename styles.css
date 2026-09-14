@@ -2206,3 +2206,45 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 }
+/* Device connection cards: shared layout for club and IWF themes. */
+#connection-panel {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.network-intro, .network-footer { grid-column: 1 / -1; }
+.network-intro { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 4px 0 8px; }
+.network-intro h3 { font-size: 1.5rem; margin: 4px 0 0; }
+.network-intro > p { max-width: 580px; color: var(--muted); line-height: 1.6; }
+.network-card { min-width: 0; display: grid; align-content: start; gap: 18px; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.network-card-heading { display: flex; align-items: center; gap: 14px; }
+.network-number { display: grid; place-items: center; flex: 0 0 40px; height: 40px; border-radius: 12px; color: var(--accent-strong); background: var(--surface-alt); font-weight: 850; font-size: .85rem; }
+.network-card h3, .network-footer h3 { margin: 0; font-size: 1.12rem; }
+.network-card p { margin: 0; color: var(--muted); line-height: 1.55; }
+.network-card-heading p { margin-top: 3px; font-size: .88rem; }
+.network-pairing { display: flex; gap: 20px; align-items: center; }
+.network-pairing .qr-code { width: 132px; height: 132px; padding: 8px; flex-shrink: 0; }
+.network-pairing > div { display: grid; gap: 8px; justify-items: start; }
+.network-pairing .connection-code { font-size: 1.6rem; padding: 6px 12px; }
+.network-link-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-alt); min-width: 0; }
+.network-link-address { flex: 1 1 220px; min-width: 0; font-family: inherit; font-size: .9rem; color: var(--ink); overflow-wrap: anywhere; }
+.network-link-actions, .network-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.network-link-actions .ghost-button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 12px; font-size: .85rem; text-decoration: none; color: var(--ink); }
+.network-link-actions button:hover, .network-link-actions a:hover { border-color: var(--accent); color: var(--accent-strong); }
+.network-note { padding-left: 12px; border-left: 3px solid var(--accent); font-size: .86rem; line-height: 1.5; color: var(--muted); }
+.network-footer { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 22px; }
+.network-footer > p { margin: 0; max-width: 900px; color: var(--muted); line-height: 1.55; font-size: .9rem; }
+@media (max-width: 1100px) {
+  #connection-panel { grid-template-columns: minmax(0, 1fr); }
+  .network-intro { align-items: start; flex-direction: column; gap: 8px; }
+  .network-intro > p { margin: 0; }
+}
+@media (max-width: 480px) {
+  .network-card { padding: 18px; }
+  .network-pairing { align-items: start; flex-direction: column; }
+  .network-link-actions { width: 100%; }
+  .network-link-actions > * { flex: 1; }
+}

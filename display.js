@@ -19,7 +19,7 @@ const ROLE_LABELS = {
 
 let displayId = getOrCreateDisplayId();
 let displayName = getDisplayName();
-let currentRole = "";
+let currentRole = null;
 let eventSource = null;
 let heartbeatTimer = null;
 
@@ -27,6 +27,7 @@ const $ = (selector) => document.querySelector(selector);
 
 document.addEventListener("DOMContentLoaded", async () => {
   renderWaiting("Verbindung wird aufgebaut.");
+  $("#show-waiting-room")?.addEventListener("click", showWaitingRoom);
   await registerDisplay();
   startEvents();
   startHeartbeat();
@@ -105,7 +106,10 @@ async function sendHeartbeat() {
 
 function applyAssignment(role) {
   const nextRole = ROLE_PATHS[role] ? role : "";
-  if (nextRole === currentRole) return;
+  if (nextRole === currentRole) {
+    if (!nextRole) renderWaiting("Diese Anzeige ist verbunden und wartet auf eine Ansicht.");
+    return;
+  }
   currentRole = nextRole;
   const frame = $("#display-frame");
   const waiting = $("#waiting-panel");
@@ -131,4 +135,18 @@ function renderWaiting(status) {
 
 function renderStatus(status) {
   if (!currentRole) renderWaiting(status);
+}
+
+async function showWaitingRoom() {
+  try {
+    const response = await fetch("/api/display/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: displayId, role: "waitingRoom" }),
+    });
+    if (!response.ok) throw new Error("assign failed");
+    applyAssignment("waitingRoom");
+  } catch {
+    renderWaiting("Warteraum konnte nicht geöffnet werden. Verbindung zum Wettkampf-PC prüfen.");
+  }
 }

@@ -195,6 +195,13 @@ async function main() {
 
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || `localhost:${PORT}`}`);
+  // Canonical paths keep relative script/style URLs valid, including in Pi kiosk bookmarks.
+  const displayPath = url.pathname.replace(/\/+$/, "");
+  if (["/pi", "/warteraum-anzeige", "/display", "/dashboard"].includes(displayPath) && displayPath !== url.pathname) {
+    res.writeHead(302, { Location: displayPath + url.search });
+    res.end();
+    return;
+  }
 
   if (url.pathname === "/api/state" && req.method === "GET") {
     sendJson(res, 200, state);

@@ -57,3 +57,16 @@ test("a screen station can switch to the live dashboard and back", () => {
   ctx.applyAssignment("");
   assert.equal(nodes.get("#display-frame").src, undefined);
 });
+
+test("an unassigned station reports connected on initial registration and reconnect", () => {
+  let message = "Verbindung wird aufgebaut.";
+  const ctx = vm.createContext({ ROLE_PATHS: { waitingRoom: "/pi" }, ROLE_LABELS: {}, currentRole: null,
+    $: () => ({ classList: { add() {}, remove() {} }, removeAttribute() {} }), document: {},
+    renderWaiting: (text) => { message = text; } });
+  vm.runInContext(extract(read("display.js"), "applyAssignment"), ctx);
+  ctx.applyAssignment("");
+  assert.match(message, /verbunden und wartet/);
+  message = "Live-Verbindung wird wiederhergestellt.";
+  ctx.applyAssignment("");
+  assert.match(message, /verbunden und wartet/);
+});
