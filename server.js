@@ -26,7 +26,7 @@ const WEIGH_CLIENT_TIMEOUT_MS = 15000;
 const DISPLAY_CLIENTS = new Map();
 const DISPLAY_CLIENT_TIMEOUT_MS = 15000;
 const MAX_WAITING_ROOM_CHANGES = 2;
-const DISPLAY_ROLES = new Set(["", "plates", "scoreboard", "waitingRoom", "dashboard"]);
+const DISPLAY_ROLES = new Set(["", "plates", "scoreboard", "waitingRoom", "control", "judge", "weigh"]);
 const YOUTUBE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
@@ -188,16 +188,23 @@ async function main() {
     for (const url of getLanUrls("/judge")) console.log(`Kampfrichter: ${url}`);
     for (const url of getLanUrls("/waage")) console.log(`Waage: ${url}`);
     for (const url of getLanUrls("/pi")) console.log(`Warteraum-Anzeige: ${url}`);
-    for (const url of getLanUrls("/display")) console.log(`Bildschirmstation: ${url}`);
+    for (const slot of [1, 2, 3]) {
+      for (const url of getLanUrls(`/display${slot}`)) console.log(`Display ${slot}: ${url}`);
+    }
     console.log(`Verbindungscode: ${sessionCode}`);
   });
 }
 
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || `localhost:${PORT}`}`);
+  if (url.pathname === "/dashboard" || url.pathname === "/dashboard/") {
+    res.writeHead(302, { Location: "/" });
+    res.end();
+    return;
+  }
   // Canonical paths keep relative script/style URLs valid, including in Pi kiosk bookmarks.
   const displayPath = url.pathname.replace(/\/+$/, "");
-  if (["/pi", "/warteraum-anzeige", "/display", "/dashboard"].includes(displayPath) && displayPath !== url.pathname) {
+  if (["/pi", "/warteraum-anzeige", "/display", "/display1", "/display2", "/display3"].includes(displayPath) && displayPath !== url.pathname) {
     res.writeHead(302, { Location: displayPath + url.search });
     res.end();
     return;
@@ -1470,10 +1477,8 @@ async function serveStatic(urlPath, res) {
         ? "judge.html"
         : urlPath === "/waage"
           ? "weigh.html"
-        : urlPath === "/display"
+        : (urlPath === "/display" || /^\/display[123]$/.test(urlPath))
           ? "display.html"
-        : urlPath === "/dashboard"
-          ? "dashboard.html"
         : urlPath === "/plates"
           ? "plates.html"
           : urlPath === "/scoreboard"
@@ -3272,15 +3277,14 @@ function getSessionPayload(req) {
     code: sessionCode,
     controlUrl: `http://${host}/`,
     controlUrls: getLanUrls("/"),
-    dashboardUrls: getLanUrls("/dashboard"),
     judgeUrl: `http://${host}/judge`,
     urls: getLanUrls("/judge"),
     weighUrl: `http://${host}/waage`,
     weighUrls: getLanUrls("/waage"),
     waitingRoomDisplayUrl: `http://${host}/pi`,
     waitingRoomDisplayUrls: getLanUrls("/pi"),
-    displayStationUrl: `http://${host}/display`,
-    displayStationUrls: getLanUrls("/display"),
+    displayStationUrl: `http://${host}/display1`,
+    displayStationUrls: [1, 2, 3].flatMap((slot) => getLanUrls(`/display${slot}`)),
     refereeCount: getRefereeCount(),
     judges: sanitizeJudges(),
     controlClients: sanitizeControlClients(),

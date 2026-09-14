@@ -37,8 +37,6 @@ $rootFiles = @(
   "Installieren.cmd",
   "server.js",
   "index.html",
-  "dashboard.html",
-  "dashboard.js",
   "styles.css",
   "app.js",
   "judge.html",

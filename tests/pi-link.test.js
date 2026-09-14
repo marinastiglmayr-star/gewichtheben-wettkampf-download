@@ -10,7 +10,7 @@ test("Pi and screen links redirect trailing slashes without losing query paramet
   const end = source.indexOf("\nasync function ", start + 1);
   const ctx = vm.createContext({ URL, PORT: 8765 });
   vm.runInContext(source.slice(start, end), ctx);
-  for (const route of ["/pi", "/warteraum-anzeige", "/display", "/dashboard"]) {
+  for (const route of ["/pi", "/warteraum-anzeige", "/display", "/display1", "/display2", "/display3"]) {
     let result;
     await ctx.route({ url: route + "/?name=Pi", headers: { host: "192.168.1.20:8765" }, method: "GET" }, {
       writeHead(code, headers) { result = { code, location: headers.Location }; }, end() {},

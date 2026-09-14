@@ -44,16 +44,17 @@ test("judge start button is enabled without a countdown; permissions still apply
   assert.equal(ctx.els.timerStart.disabled, true);
 });
 
-test("a screen station can switch to the live dashboard and back", () => {
+test("a screen station can switch between every supported network view", () => {
   const nodes = new Map();
   for (const id of ["#display-frame", "#waiting-panel"]) nodes.set(id, { classList: { add() {}, remove() {} }, removeAttribute(name) { delete this[name]; } });
-  const ctx = vm.createContext({ ROLE_PATHS: { dashboard: "/dashboard", plates: "/plates" }, ROLE_LABELS: { dashboard: "Live-Dashboard", plates: "Scheiben" },
+  const paths = { control: "/", judge: "/judge", weigh: "/waage", plates: "/plates", scoreboard: "/scoreboard", waitingRoom: "/pi" };
+  const ctx = vm.createContext({ ROLE_PATHS: paths, ROLE_LABELS: Object.fromEntries(Object.keys(paths).map((key) => [key, key])),
     currentRole: "", $: (id) => nodes.get(id), document: {}, renderWaiting() {} });
   vm.runInContext(extract(read("display.js"), "applyAssignment"), ctx);
-  ctx.applyAssignment("dashboard");
-  assert.equal(nodes.get("#display-frame").src, "/dashboard");
-  ctx.applyAssignment("plates");
-  assert.equal(nodes.get("#display-frame").src, "/plates");
+  for (const [role, path] of Object.entries(paths)) {
+    ctx.applyAssignment(role);
+    assert.equal(nodes.get("#display-frame").src, path);
+  }
   ctx.applyAssignment("");
   assert.equal(nodes.get("#display-frame").src, undefined);
 });

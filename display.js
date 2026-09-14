@@ -4,14 +4,18 @@ const DISPLAY_ID_KEY = "gewichtheben-display-station-id";
 const DISPLAY_NAME_KEY = "gewichtheben-display-station-name";
 
 const ROLE_PATHS = {
-  dashboard: "/dashboard",
+  control: "/",
+  judge: "/judge",
+  weigh: "/waage",
   plates: "/plates",
   scoreboard: "/scoreboard",
   waitingRoom: "/pi",
 };
 
 const ROLE_LABELS = {
-  dashboard: "Live-Dashboard / Beamer",
+  control: "Wettkampfleitung",
+  judge: "Kampfrichter",
+  weigh: "Waage",
   plates: "Scheibenanzeige",
   scoreboard: "Protokoll und Ergebnisse",
   waitingRoom: "Warteraum-Anzeige",
@@ -27,13 +31,14 @@ const $ = (selector) => document.querySelector(selector);
 
 document.addEventListener("DOMContentLoaded", async () => {
   renderWaiting("Verbindung wird aufgebaut.");
-  $("#show-waiting-room")?.addEventListener("click", showWaitingRoom);
   await registerDisplay();
   startEvents();
   startHeartbeat();
 });
 
 function getOrCreateDisplayId() {
+  const slot = location.pathname.match(/^\/(display[123])\/?$/);
+  if (slot) return slot[1];
   const existing = localStorage.getItem(DISPLAY_ID_KEY);
   if (existing) return existing;
   const id = crypto.randomUUID ? crypto.randomUUID() : `display-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -42,6 +47,7 @@ function getOrCreateDisplayId() {
 }
 
 function getDisplayName() {
+  if (/^display[123]$/.test(displayId)) return "Display " + displayId.slice(-1);
   const params = new URLSearchParams(location.search);
   const requestedName = params.get("name")?.trim();
   if (requestedName) {
@@ -135,18 +141,4 @@ function renderWaiting(status) {
 
 function renderStatus(status) {
   if (!currentRole) renderWaiting(status);
-}
-
-async function showWaitingRoom() {
-  try {
-    const response = await fetch("/api/display/assign", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: displayId, role: "waitingRoom" }),
-    });
-    if (!response.ok) throw new Error("assign failed");
-    applyAssignment("waitingRoom");
-  } catch {
-    renderWaiting("Warteraum konnte nicht geöffnet werden. Verbindung zum Wettkampf-PC prüfen.");
-  }
 }

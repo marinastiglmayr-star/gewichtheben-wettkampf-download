@@ -102,13 +102,14 @@ const SCORING_MODES = {
 };
 const DISPLAY_ROLES = [
   { key: "", label: "Nicht zugewiesen" },
-  { key: "dashboard", label: "Live-Dashboard / Beamer" },
+  { key: "control", label: "Wettkampfleitung (mit Bedienung)" },
+  { key: "judge", label: "Kampfrichter" },
+  { key: "weigh", label: "Waage" },
   { key: "plates", label: "Scheibenanzeige" },
   { key: "scoreboard", label: "Protokoll und Ergebnisse" },
   { key: "waitingRoom", label: "Warteraum-Anzeige" },
 ];
 const LOCAL_WINDOW_TARGETS = [
-  { key: "dashboard", label: "Live-Dashboard / Beamer", path: "/dashboard", windowName: "gewichtheben-dashboard", width: 1440, height: 900 },
   {
     key: "plates",
     label: "Scheibensteckeranzeige",
@@ -3740,7 +3741,6 @@ function renderConnection() {
   const pcJudgeUrl = judgeUrls.find((url) => url.includes("localhost")) || "http://localhost:8765/judge";
   const phoneUrls = judgeUrls.filter((url) => !url.includes("localhost"));
   const controlUrls = (sessionInfo?.controlUrls || phoneUrls.map((url) => url.replace(/\/judge$/, "/"))).filter((url) => !url.includes("localhost"));
-  const dashboardUrls = sessionInfo?.dashboardUrls || controlUrls.map((url) => `${url.replace(/\/$/, "")}/dashboard`);
   const wlanWeighUrls = weighUrls.filter((url) => !url.includes("localhost"));
   const wlanWaitingRoomDisplayUrls = waitingRoomDisplayUrls.filter((url) => !url.includes("localhost"));
   const wlanDisplayStationUrls = displayStationUrls.filter((url) => !url.includes("localhost"));
@@ -3773,23 +3773,16 @@ function renderConnection() {
       <div class="network-note">Denselben Athleten möglichst nur an einem PC gleichzeitig bearbeiten.</div>
     </article>
     <article class="network-card">
-      <div class="network-card-heading"><span class="network-number">04</span><div><h3>Beamer-Dashboard</h3><p>Aktueller Versuch, Uhr und Live-Wertung</p></div></div>
-      <p>Direkt auf dem Host oder Beamer-PC öffnen. Das Fenster auf den Beamer verschieben und „Vollbild“ wählen.</p>
-      ${renderConnectionLinks(dashboardUrls.filter((url) => !url.includes("localhost")), "Beamer-Dashboard")}
-      <div class="network-note">Startet direkt. Keine Anmeldung und keine Zuweisung nötig.</div>
-    </article>
-    <article class="network-card">
-      <div class="network-card-heading"><span class="network-number">05</span><div><h3>Warteraum auf dem Pi</h3><p>Feste Anzeige für Athleten und Trainer</p></div></div>
+      <div class="network-card-heading"><span class="network-number">04</span><div><h3>Warteraum auf dem Pi</h3><p>Feste Anzeige für Athleten und Trainer</p></div></div>
       <p>Diesen Link im Browser des Raspberry Pi öffnen, wenn dort immer der Warteraum angezeigt werden soll.</p>
       ${renderConnectionLinks(wlanWaitingRoomDisplayUrls, "Warteraum")}
       <div class="network-note">Startet direkt. Keine Anmeldung und keine Zuweisung nötig.</div>
     </article>
     <article class="network-card">
-      <div class="network-card-heading"><span class="network-number">06</span><div><h3>Steuerbare Bildschirmstation</h3><p>Ansicht vom Host aus auswählen</p></div></div>
-      <p>Für einen Pi oder Bildschirm, dessen Ansicht du wechseln möchtest: Link dort öffnen, anschließend hier die Anzeige zuweisen.</p>
-      ${renderConnectionLinks(wlanDisplayStationUrls, "Bildschirmstation")}
-      <div class="network-actions"><button type="button" class="primary-button" data-action="open-display-routing">Ansicht zuweisen (${displayClients.length})</button><button type="button" class="ghost-button" data-action="open-window-screen-settings">Lokale Fenster zuordnen</button></div>
-      <div class="network-note">Bis zur Zuweisung zeigt die Station eine Warteseite.</div>
+      <div class="network-card-heading"><span class="network-number">05</span><div><h3>Steuerbare Bildschirmstation</h3><p>Ansicht vom Host aus auswählen</p></div></div>
+      <p>Für einen Pi oder Bildschirm, dessen Ansicht du wechseln möchtest: Für jede Adresse hier die Ansicht auswählen und den Link auf dem jeweiligen Pi öffnen. Mehrere Geräte mit derselben Adresse zeigen dieselbe Ansicht.</p>
+      ${renderFixedDisplaySlots()}
+      <div class="network-note">Die Auswahl wird sofort gespeichert. Bis eine Ansicht gewählt ist, zeigt der jeweilige Pi eine Warteseite.</div>
     </article>
     <section class="network-footer"><h3>Verbindungsstatus</h3>${renderControlClientStatus()}<p>Seite nicht erreichbar? Host eingeschaltet lassen, Adressen aus diesem Menü verwenden und prüfen, ob beide Geräte im selben Netzwerk sind. Gastnetz und Windows-Firewall können Verbindungen blockieren.</p></section>
   `;
@@ -3890,26 +3883,10 @@ function closeDisplayRoutingDialog() {
 
 function renderDisplayRoutingDialog() {
   if (!els.displayRoutingList) return;
-  const displayUrls = sessionInfo?.displayStationUrls?.length
-    ? sessionInfo.displayStationUrls.filter((url) => !url.includes("localhost"))
-    : [];
   const clients = Array.isArray(sessionInfo?.displayClients) ? sessionInfo.displayClients : [];
 
-  if (!clients.length) {
-    els.displayRoutingList.innerHTML = `
-      <div class="empty-display-routing">
-        <p class="muted">Noch keine Bildschirmstation verbunden.</p>
-        ${
-          displayUrls.length
-            ? renderConnectionLinks(displayUrls, "Bildschirmstation")
-            : `<p class="warning-text">Keine Netzwerkadresse gefunden.</p>`
-        }
-      </div>
-    `;
-    return;
-  }
-
-  els.displayRoutingList.innerHTML = clients
+  els.displayRoutingList.innerHTML = renderFixedDisplaySlots() + clients
+    .filter((client) => !/^display[123]$/.test(client.id))
     .map((client) => {
       const assignment = client.assignment || sessionInfo?.displayAssignments?.[client.id] || "";
       return `
@@ -3928,6 +3905,19 @@ function renderDisplayRoutingDialog() {
       `;
     })
     .join("");
+}
+
+function renderFixedDisplaySlots() {
+  const bases = (sessionInfo?.controlUrls || []).filter((url) => !url.includes("localhost"));
+  const clients = sessionInfo?.displayClients || [];
+  return [1, 2, 3].map((number) => {
+    const id = 'display' + number;
+    const client = clients.find((item) => item.id === id);
+    const role = sessionInfo?.displayAssignments?.[id] || client?.assignment || "";
+    return `<div class="fixed-display-slot"><div class="fixed-display-heading"><strong>Display ${number}</strong><span class="${client ? 'ok-text' : 'muted'}">${client ? 'verbunden' : 'nicht geöffnet'}</span></div>
+      ${renderConnectionLinks(bases.map((base) => base.replace(/\/$/, '') + '/' + id), 'Display ' + number)}
+      <label><span>Ansicht auf Display ${number}</span><select data-display-assignment data-id="${id}">${renderDisplayRoleOptions(role)}</select></label></div>`;
+  }).join('');
 }
 
 function renderDisplayRoleOptions(selectedRole) {

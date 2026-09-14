@@ -2235,6 +2235,11 @@ tbody tr:last-child td {
 .network-link-actions .ghost-button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 12px; font-size: .85rem; text-decoration: none; color: var(--ink); }
 .network-link-actions button:hover, .network-link-actions a:hover { border-color: var(--accent); color: var(--accent-strong); }
 .network-note { padding-left: 12px; border-left: 3px solid var(--accent); font-size: .86rem; line-height: 1.5; color: var(--muted); }
+.fixed-display-slot { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-alt); }
+.fixed-display-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fixed-display-slot .network-link-row { padding: 0; border: 0; background: transparent; }
+.fixed-display-slot label { display: grid; gap: 7px; color: var(--muted); font-size: .86rem; font-weight: 750; }
+.fixed-display-slot select { width: 100%; min-height: 42px; background: var(--surface); }
 .network-footer { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 22px; }
 .network-footer > p { margin: 0; max-width: 900px; color: var(--muted); line-height: 1.55; font-size: .9rem; }
 @media (max-width: 1100px) {
